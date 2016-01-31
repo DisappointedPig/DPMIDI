@@ -19,6 +19,8 @@ provides basic RTP (network) midi for android devices - compatable with Apple MI
 - doesn't handle realtime streams
 - doesn't handle bitrate receive limit
 - doesn't handle receiver feedback
+- doesn't handle rtp journal data
+ 
 
 ---
 
