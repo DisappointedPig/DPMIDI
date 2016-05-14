@@ -9,13 +9,13 @@ import android.os.Build;
 import android.util.Log;
 import android.util.SparseArray;
 
+import org.greenrobot.eventbus.EventBus;
+
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Random;
-
-import de.greenrobot.event.EventBus;
 
 public class MIDISession {
     private static MIDISession midiSessionInstance;
@@ -397,7 +397,7 @@ public class MIDISession {
         Log.d("MIDISession","model:"+ Build.MODEL);
         Log.d("MIDISession","product:"+ Build.PRODUCT);
         Log.d("MIDISession","radio:"+ Build.RADIO);
-        Log.d("MIDISession","serial:"+ Build.SERIAL);
+//        Log.d("MIDISession","serial:"+ Build.SERIAL);
         Log.d("MIDISession","tags:"+ Build.TAGS);
         Log.d("MIDISession","type:"+ Build.TYPE);
         Log.d("MIDISession","user:"+ Build.USER);

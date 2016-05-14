@@ -3,11 +3,10 @@ package com.disappointedpig.midi;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+
+import org.greenrobot.eventbus.EventBus;
 
 import java.net.InetAddress;
-
-import de.greenrobot.event.EventBus;
 
 
 public class MIDIStream {
