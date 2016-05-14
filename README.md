@@ -3,6 +3,8 @@ Simple Android RTP MIDI
 
 developed using android studio 1.5.1, updated for 2.1.1 (don't forget to sync project with gradle after fresh clone)
 
+requires eventbus3.0.0 
+
 provides basic RTP (network) midi for android devices - compatable with Apple MIDI 
 
 - works with API 8+ (2.2/Froyo)

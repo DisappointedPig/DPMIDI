@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    @Subscribe(threadMode = ThreadMode.ASYNC)
+    @Subscribe(threadMode = ThreadMode.MAIN)
     public void onMIDIDebugEvent(final MIDIDebugEvent event) {
 //        Toast.makeText(this, "got midi event", Toast.LENGTH_SHORT).show();
 //        Log.d("ahs", "got midi event");

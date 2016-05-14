@@ -327,32 +327,39 @@ public class MIDISession {
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     public void initializeResolveListener() {
-        mResolveListener = new NsdManager.ResolveListener() {
-            String TAG = "resolve:";
-            @Override
-            public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
-                // Called when the resolve fails.  Use the error code to debug.
-                Log.e(TAG, "Resolve failed" + errorCode);
-            }
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            mResolveListener = new NsdManager.ResolveListener() {
+                String TAG = "resolve:";
 
-            @Override
-            public void onServiceResolved(NsdServiceInfo serviceInfo) {
-                Log.e(TAG, "Resolve Succeeded. " + serviceInfo);
-
-                if (serviceInfo.getServiceName().equals(bonjourName)) {
-                    Log.d(TAG, "Same IP.");
-//                    return;
-                }
-//                mService = serviceInfo;
-//                int port = mService.getPort();
-//                InetAddress host = mService.getHost();
-//                Log.e(TAG, "service host" + serviceInfo.getHost());
-                if(debugLevel > 0) {
-                    EventBus.getDefault().post(new MIDIDebugEvent("MIDISession","registered nsd on " + serviceInfo.getHost() + ":" + serviceInfo.getPort()));
+                @Override
+                public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
+                    // Called when the resolve fails.  Use the error code to debug.
+                    Log.e(TAG, "Resolve failed" + errorCode);
                 }
 
-            }
-        };
+                @Override
+                public void onServiceResolved(NsdServiceInfo serviceInfo) {
+                    Log.e(TAG, "Resolve Succeeded. " + serviceInfo);
+
+                    if (serviceInfo.getServiceName().equals(bonjourName)) {
+                        Log.d(TAG, "Same IP.");
+                        //                    return;
+                    }
+                    //                mService = serviceInfo;
+                    //                int port = mService.getPort();
+                    //                InetAddress host = mService.getHost();
+                    //                Log.e(TAG, "service host" + serviceInfo.getHost());
+                    if (debugLevel > 0) {
+                        EventBus.getDefault().post(new MIDIDebugEvent("MIDISession", "registered nsd on " + serviceInfo.getHost() + ":" + serviceInfo.getPort()));
+                    }
+
+                }
+            };
+//        } else {
+//            if (debugLevel > 0) {
+//                EventBus.getDefault().post(new MIDIDebugEvent("MIDISession", "nsd not available before JELLY_BEAN"));
+//            }
+        }
     }
 
     public void shutdownNSDListener() {
