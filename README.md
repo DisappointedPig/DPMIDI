@@ -1,7 +1,7 @@
 # DPMIDI
 Simple Android RTP MIDI
 
-developed using android studio 1.5.1 (don't forget to sync project with gradle after fresh clone)
+developed using android studio 1.5.1, updated for 2.1.1 (don't forget to sync project with gradle after fresh clone)
 
 provides basic RTP (network) midi for android devices - compatable with Apple MIDI 
 
