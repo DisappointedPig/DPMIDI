@@ -1,7 +1,12 @@
 package com.disappointedpig.dpmidi;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -37,6 +42,10 @@ public class MainActivity extends AppCompatActivity {
         int position;
     }
 
+    private MIDIService midiServiceRef;
+    private ServiceConnection midiServiceConnection;
+    SharedPreferences sharedpreferences;
+
     ArrayList<MIDIDebugEvent> activityList=new ArrayList<MIDIDebugEvent>();
 
     ArrayAdapter<MIDIDebugEvent> adapter;
@@ -50,7 +59,13 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        sharedpreferences = getSharedPreferences("DPMIDIPreferences", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedpreferences.edit();
+        editor.putBoolean("MIDIState", false);
+        editor.commit();
+
         EventBus.getDefault().register(this);
+        startMIDIService();
 
 //        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
 //        fab.setOnClickListener(new View.OnClickListener() {
@@ -91,8 +106,8 @@ public class MainActivity extends AppCompatActivity {
         ListView listView = (ListView) findViewById(R.id.activity_listview);
         listView.setAdapter(adapter);
 
-            ToggleButton midiToggle = (ToggleButton) findViewById(R.id.midiToggleButton);
-
+        ToggleButton midiToggle = (ToggleButton) findViewById(R.id.midiToggleButton);
+        ToggleButton midiServiceToggle = (ToggleButton) findViewById(R.id.midiServiceToggleButton);
 
         midiToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -105,6 +120,26 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        midiServiceToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+//                    updateList("midi preference on");
+//                    startupMIDI();
+                    SharedPreferences.Editor editor = sharedpreferences.edit();
+                    editor.putBoolean("MIDIState", true);
+                    editor.commit();
+
+                } else {
+//                    updateList("midi preference off");
+//                    shutdownMIDI();
+                    SharedPreferences.Editor editor = sharedpreferences.edit();
+                    editor.putBoolean("MIDIState", false);
+                    editor.commit();
+                }
+            }
+        });
+
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -160,6 +195,27 @@ public class MainActivity extends AppCompatActivity {
         midiSession.stopListening();
     }
 
+    public void startMIDIService() {
+        Intent cmsIntent = new Intent(this,MIDIService.class);
+        startService(cmsIntent);
+
+        midiServiceConnection = new ServiceConnection() {
+            public void onServiceConnected(ComponentName className, IBinder service) {
+                // Called when the connection is made.
+                midiServiceRef = ((MIDIService.MIDIServiceBinder) service).getService();
+
+            }
+
+            public void onServiceDisconnected( ComponentName className) {
+                // Received when the service unexpectedly disconnects.
+                midiServiceRef = null;
+            }
+        };
+
+        Intent bindintent = new Intent(this,MIDIService.class);
+        bindService(bindintent, midiServiceConnection, Context.BIND_AUTO_CREATE);
+
+    }
 }
 
 

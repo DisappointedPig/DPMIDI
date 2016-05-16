@@ -217,18 +217,28 @@ public class MIDISession {
         if(debugLevel > 0) {
             EventBus.getDefault().post(new MIDIDebugEvent("MIDISession","stop listening: streams "+streams.size()));
         }
-
+        if(streams == null) {
+            EventBus.getDefault().post(new MIDIDebugEvent("MIDISession","error - no streams to stop"));
+            return;
+        }
         for(int i = 0; i < streams.size(); i++) {
             controlChannel.sendMIDI(streams.get(streams.keyAt(i)).getEndMessage());
             streams.valueAt(i).shutdownStream();
         }
-        controlChannel.stopListening();
-        messageChannel.stopListening();
-        controlChannel.close();
-        messageChannel.close();
-        controlChannel = null;
-        messageChannel = null;
-        streams.clear();
+        if(controlChannel != null) {
+            controlChannel.stopListening();
+            controlChannel.close();
+            controlChannel = null;
+        }
+
+        if(messageChannel != null) {
+            messageChannel.stopListening();
+            messageChannel.close();
+            messageChannel = null;
+        }
+        if(streams != null) {
+            streams.clear();
+        }
         shutdownNSDListener();
     }
 

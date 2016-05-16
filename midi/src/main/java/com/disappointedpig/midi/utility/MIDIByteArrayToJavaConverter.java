@@ -133,28 +133,45 @@ public class MIDIByteArrayToJavaConverter {
             return control;
         } else {
             // .. non apple-control message... so.. we should do something
-            int highorder = protocol >> 4 & 0x000F;
-            int loworder = protocol & 0x000f;
+            int highorder = protocol >> 8 & 0x0ff;  //4 & 0x000F;
+            int loworder = protocol & 0x00ff;
 
-            int version = highorder >> 2;
-            boolean padding = ((highorder) & 2) != 0;
-            boolean extension = (highorder & 1) != 0;
-            int csic = loworder;
-
-            int block2 = read8(rawInput);
+            int version = highorder >> 6;
+            boolean padding = ((highorder >> 5) & 1) != 0;
+            boolean extension = ((highorder >> 4) & 1) != 0;
+            int csic = highorder & 0x0f;
+//            Log.d("MBA2J","highorder: ("+String.format("%02x", highorder) +")");
+//            Log.d("MBA2J","loworder: ("+String.format("%02x", loworder) +")");
+//            Log.d("MBA2J","version:"+version+" padding:"+(padding ? "true" : "false")+" extention:"+(extension ? "true" : "false")+ " csic:"+csic);
+            int block2 = loworder; //read8(rawInput);
+//            Log.d("MBA2J","block2 ("+String.format("%02x", block2) +")");
             int sequence = read16(rawInput);
             int timestamp = readInteger(rawInput);
             int ssid = readInteger(rawInput);
 
-            boolean marker = (block2 >> 7) != 0;
+            boolean marker = (block2 >> 7 & 1) != 0;
             int payload_type = (block2 & 0x7f);
+//            Log.d("MBA2J","marker:"+(marker ? "true" : "false")+" payload_type:"+payload_type);
+//            int block2a = read8(rawInput);
+//            int block2b = read16(rawInput);
+//            int block2c = read16(rawInput);
+//            int block2d = read8(rawInput);
+//            Log.d("MBA2J","block2a ("+String.format("%02x", read8(rawInput)) +")");
+//            Log.d("MBA2J","block2b ("+String.format("%02x", read8(rawInput)) +")");
+//            Log.d("MBA2J","block2c ("+String.format("%02x", read8(rawInput)) +")");
+//            Log.d("MBA2J","block2d ("+String.format("%02x", read8(rawInput)) +")");
+//            Log.d("MBA2J","block2e ("+String.format("%02x", read8(rawInput)) +")");
+//            Log.d("MBA2J","block2f ("+String.format("%02x", read8(rawInput)) +")");
 
             int block3 = read8(rawInput);
-            boolean bflag = (block3 >> 7) != 0;
-            boolean jflag = ((block3 >> 6) & 0x1) != 0;
-            boolean zflag = ((block3 >> 5) & 0x1) != 0;
-            boolean pflag = ((block3 >> 4) & 0x1) != 0;
+            boolean bflag = (block3 >> 7 & 1) != 0;
+            boolean jflag = ((block3 >> 6 & 1) & 0x1) != 0;
+            boolean zflag = ((block3 >> 5 & 1) & 0x1) != 0;
+            boolean pflag = ((block3 >> 4 & 1) & 0x1) != 0;
             int command_length = block3 & 0x7;
+//            Log.d("MBA2J","block3 ("+String.format("%02x", block3) +")");
+
+//            Log.d("MBA2J","bflag:"+(bflag ? "true" : "false")+" jflag:"+(jflag ? "true" : "false")+" zflag:"+(zflag ? "true" : "false")+" pflag:"+(pflag ? "true" : "false")+" command_length:"+command_length);
 
             int block4 = read8(rawInput);
             int channel_status = block4 >> 4;
@@ -164,8 +181,9 @@ public class MIDIByteArrayToJavaConverter {
             int block6 = read8(rawInput);
             int velocity = block6 & 0x7f;
 
+//            Log.d("MBA2J","block4 ("+String.format("%02x", block4) +")");
 
-
+//            Log.d("MBA2J","sequence:"+sequence+ " timestamp:"+timestamp+" ssid:"+ssid+" channel_status:"+channel_status+" channel:"+channel+" note:"+note+" velocity:"+velocity);
             message = new MIDIMessage(sequence,timestamp,ssid,channel_status,channel,note,velocity);
 
 //            Log.d("MBA2J","first:"+String.format("%02x",firstbyte)+" 2A:"+String.format("%02x",secondbyteA)+" 2B"+String.format("%02x",secondbyteB));
