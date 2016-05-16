@@ -176,7 +176,25 @@ public class MIDISession {
             @Override
             public void acceptMessage(Date time, MIDIMessage message) {
 
-                EventBus.getDefault().post(new MIDIEvent(message));
+                if(message != null) {
+                    if(message.midi_channel_status == 0x09) {
+                        switch(message.midi_velocity) {
+                            case 0:
+                                EventBus.getDefault().post(new MIDIStopEvent(message));
+                                break;
+                            default:
+                                EventBus.getDefault().post(new MIDIStartEvent(message));
+                                break;
+                        }
+                    } else {
+                        Log.d("MIDISession","channel_status != 0x09");
+                        EventBus.getDefault().post(new MIDIUnknownEvent(message));
+                    }
+
+
+                }
+
+//                EventBus.getDefault().post(new MIDIEvent(message));
 //                MIDIStream stream = streams.get(message.ssrc);
 //                if(stream == null) {
 //                    stream = new MIDIStream(message, port+1, getSSRC());

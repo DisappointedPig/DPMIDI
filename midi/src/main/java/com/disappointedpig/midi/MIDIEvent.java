@@ -9,4 +9,5 @@ public class MIDIEvent {
     public MIDIEvent(MIDIMessage m) {
         message = m;
     }
+
 }

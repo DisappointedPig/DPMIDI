@@ -12,7 +12,11 @@ import android.widget.Toast;
 
 import com.disappointedpig.midi.MIDIDebugEvent;
 import com.disappointedpig.midi.MIDISession;
+import com.disappointedpig.midi.MIDIStartEvent;
+import com.disappointedpig.midi.MIDIStopEvent;
+import com.disappointedpig.midi.MIDIUnknownEvent;
 
+import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 
 public class MIDIService extends Service {
@@ -37,6 +41,8 @@ public class MIDIService extends Service {
     public void onCreate() {
         super.onCreate();
         serviceIsRunning = false;
+        EventBus.getDefault().register(this);
+
     }
 
     public int onStartCommand(Intent intent, final int flags, int startId) {
@@ -90,6 +96,8 @@ public class MIDIService extends Service {
         Toast.makeText(this, "CMS Destroyed", Toast.LENGTH_LONG).show();
         Log.d(TAG,"destroyed");
         shutdownMIDI();
+        EventBus.getDefault().unregister(this);
+
     }
 
     public class MIDIServiceBinder extends Binder {
@@ -115,7 +123,6 @@ public class MIDIService extends Service {
             midiSession = MIDISession.getInstance();
             if (midiSession != null) {
                 midiSession.stopListening();
-
             } else {
                 Log.d(TAG, "shutdownMIDI - failed... no midiSession");
             }
@@ -132,4 +139,20 @@ public class MIDIService extends Service {
     public void onMIDIDebugEvent(final MIDIDebugEvent event) {
         Log.e("MIDIService MIDI DEBUG",event.message);
     }
+
+    @Subscribe
+    public void onMIDIStartEvent(final MIDIStartEvent event) {
+        Log.e("MIDIStartEvent","note:"+event.message.midi_note+" velocity:"+event.message.midi_velocity);
+    }
+
+    @Subscribe
+    public void onMIDIStopEvent(final MIDIStopEvent event) {
+        Log.e("MIDIStopEvent","note:"+event.message.midi_note+" velocity:"+event.message.midi_velocity);
+    }
+
+    @Subscribe
+    public void onMIDIUnknownEvent(final MIDIUnknownEvent event) {
+        Log.e("MIDIEvent","message:"+event.message.toString());
+    }
+
 }

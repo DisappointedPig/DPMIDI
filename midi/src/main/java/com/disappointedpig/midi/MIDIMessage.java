@@ -75,6 +75,10 @@ public class MIDIMessage extends AbstractMIDIPacket {
         return this.sender_ssrc;
     }
 
+    @Override
+    public String toString() {
+        return("status:"+midi_channel_status+" channel:"+midi_channel+" note:"+midi_note+" velocity:"+midi_velocity);
+    }
 //    public void dumpToLog() {
 //        switch(command) {
 //            case 0x494E:
