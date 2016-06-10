@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.content.Context;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.util.Log;
@@ -11,11 +12,16 @@ import android.util.SparseArray;
 
 import org.greenrobot.eventbus.EventBus;
 
+import java.math.BigInteger;
+import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Random;
+
+import static android.content.ContentValues.TAG;
+import static android.content.Context.WIFI_SERVICE;
 
 public class MIDISession {
     private static MIDISession midiSessionInstance;
@@ -223,7 +229,13 @@ public class MIDISession {
     }
 
     public String getName() {
-        return this.bonjourName;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            return this.bonjourName;
+        } else {
+            String midiaddress = getMIDIAddress().getHostAddress() + ":"+defaultPort;
+            return midiaddress;
+        }
+
     }
 
     public void stopListening() {
@@ -442,6 +454,7 @@ public class MIDISession {
         shutdownNSDListener();
         this.bonjourName = name;
         try {
+
             registerService(this.port);
         } catch (UnknownHostException e) {
             e.printStackTrace();
@@ -455,5 +468,47 @@ public class MIDISession {
 
     public Boolean removeMIDIMessageListener() {
         return true;
+    }
+
+    public InetAddress getMIDIAddress() {
+//        EventBus.getDefault().post(new OSCDebugEvent("OSCSession", "getInboundAddress"));
+
+        try {
+            if(appContext == null) {
+                Log.d(TAG,"app context is null");
+//                if(debugLevel > 0) {
+//                    EventBus.getDefault().post(new OSCDebugEvent("OSCSession", "app context not set"));
+//                }
+                return InetAddress.getByName("127.0.0.1");
+            }
+            WifiManager wm = (WifiManager) appContext.getSystemService(WIFI_SERVICE);
+            int ip = wm.getConnectionInfo().getIpAddress();
+
+            byte[] ipbytearray= BigInteger.valueOf(wm.getConnectionInfo().getIpAddress()).toByteArray();
+//        String ip = String.format("%d.%d.%d.%d", (ipAddress & 0xff),(ipAddress >> 8 & 0xff),(ipAddress >> 16 & 0xff),(ipAddress >> 24 & 0xff));
+            reverse(ipbytearray);
+            if(ipbytearray.length != 4) {
+                return InetAddress.getByName("127.0.0.1");
+            }
+            return InetAddress.getByAddress(ipbytearray);
+        } catch (UnknownHostException e) {
+            return null;
+        }
+    }
+
+    private static void reverse(byte[] array) {
+        if (array == null) {
+            return;
+        }
+        int i = 0;
+        int j = array.length - 1;
+        byte tmp;
+        while (j > i) {
+            tmp = array[j];
+            array[j] = array[i];
+            array[i] = tmp;
+            j--;
+            i++;
+        }
     }
 }

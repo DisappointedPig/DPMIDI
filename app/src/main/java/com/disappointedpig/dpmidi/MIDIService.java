@@ -97,7 +97,7 @@ public class MIDIService extends Service {
         Log.d(TAG,"destroyed");
         shutdownMIDI();
         EventBus.getDefault().unregister(this);
-
+        wifiLock.release();
     }
 
     public class MIDIServiceBinder extends Binder {
