@@ -9,8 +9,8 @@ import com.disappointedpig.midi.utility.MIDIPacketDispatcher;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.nio.charset.Charset;
 
 public class MIDIPort extends Port implements Runnable {
 
@@ -21,22 +21,39 @@ public class MIDIPort extends Port implements Runnable {
     private final MIDIByteArrayToJavaConverter converter;
     private final MIDIPacketDispatcher dispatcher;
 
-
-    public MIDIPort(DatagramSocket socket) {
-        super(socket, socket.getLocalPort());
-
+    public MIDIPort() {
+        super();
         this.converter = new MIDIByteArrayToJavaConverter();
         this.dispatcher = new MIDIPacketDispatcher();
     }
 
-    public MIDIPort(int port) throws SocketException {
-        this(new DatagramSocket(port));
+//    public MIDIPort(DatagramSocket socket) {
+////        super(socket, socket.getLocalPort());
+//        super();
+//
+//        this.converter = new MIDIByteArrayToJavaConverter();
+//        this.dispatcher = new MIDIPacketDispatcher();
+//    }
+
+    public void initMIDIPort(int port) throws SocketException {
+//        this(new DatagramSocket(port));
+        this.port = port;
+        try {
+            Log.d("inport","socket bound? "+(socket.isBound() ? "YES" : "NO"));
+            Log.d("inport","socket closed? "+(socket.isClosed() ? "YES" : "NO"));
+            InetSocketAddress a = new InetSocketAddress(port);
+            Log.d("inport","about to bind to socket - "+a.toString());
+            socket.bind(a);
+            Log.d("portIn","socket is bound "+(socket.isBound() ? "YES" : "NO"));
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
     }
 
-    public MIDIPort(int port, Charset charset) throws SocketException {
-        this(port);
-        this.converter.setCharset(charset);
-    }
+//    public MIDIPort(int port, Charset charset) throws SocketException {
+//        this(port);
+//        this.converter.setCharset(charset);
+//    }
 
 
     /**

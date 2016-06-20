@@ -11,6 +11,7 @@ import android.util.Log;
 import android.widget.Toast;
 
 import com.disappointedpig.midi.MIDIDebugEvent;
+import com.disappointedpig.midi.MIDINameChange;
 import com.disappointedpig.midi.MIDISession;
 import com.disappointedpig.midi.MIDIStartEvent;
 import com.disappointedpig.midi.MIDIStopEvent;
@@ -153,6 +154,12 @@ public class MIDIService extends Service {
     @Subscribe
     public void onMIDIUnknownEvent(final MIDIUnknownEvent event) {
         Log.e("MIDIEvent","message:"+event.message.toString());
+    }
+
+    @Subscribe
+    public void onMIDINameChangeEvent(final MIDINameChange event) {
+        Log.e("MIDINameChange","name:"+ event.name);
+
     }
 
 }

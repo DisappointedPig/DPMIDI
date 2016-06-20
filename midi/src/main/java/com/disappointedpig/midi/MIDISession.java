@@ -35,7 +35,10 @@ public class MIDISession {
 
         final Random rand = new Random(System.currentTimeMillis());
 
-        this.ssrc = (int) Math.round(rand.nextFloat() * Math.pow(2,8*4)) & 0xFFFFFFFF;
+//        this.ssrc = (int) Math.round(rand.nextFloat() * Math.pow(2,8*4)) & 0xFFFFFFFF;
+
+        this.ssrc = (int) Math.round(rand.nextFloat() * Math.pow(2, 8 * 4));
+
     }
 
     public static MIDISession getInstance() {
@@ -120,8 +123,10 @@ public class MIDISession {
 //        dumpPhoneBuildInfo();
 
         try {
-            controlChannel = new MIDIPort(this.port);
-            messageChannel = new MIDIPort(this.port+1);
+            controlChannel = new MIDIPort();
+            controlChannel.initMIDIPort(this.port);
+            messageChannel = new MIDIPort();
+            messageChannel.initMIDIPort(this.port+1);
         } catch (SocketException e) {
             e.printStackTrace();
         }
@@ -339,6 +344,9 @@ public class MIDISession {
                 // resolve a conflict, so update the name you initially requested
                 // with the name Android actually used.
                 bonjourName = NsdServiceInfo.getServiceName();
+
+                EventBus.getDefault().post(new MIDINameChange(bonjourName));
+
 //                System.out.print("onServiceRegistered: ");
 //                System.out.println(bonjourName);
             }
