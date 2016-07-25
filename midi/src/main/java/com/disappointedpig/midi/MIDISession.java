@@ -73,6 +73,8 @@ public class MIDISession {
 
     private Context appContext;
 
+    private int messageSequence;
+
     public void initMIDI(Context context, String bonjourName) {
         initMIDI(context,defaultPort,bonjourName);
     }
@@ -148,6 +150,7 @@ public class MIDISession {
         return true;
     }
 
+    // getNow returns a unix (long)timestamp
     public long getNow() {
 //        var hrtime = process.hrtime(this.startTimeHr);
 //        return Math.round(((hrtime[0] + hrtime[1] / 1000 / 1000 / 1000)) * this.rate) % 0xffffffff;
@@ -157,6 +160,16 @@ public class MIDISession {
 
 //        Log.i("NOW", "hrtime:" + String.format("%02x", hrtime) + "now: " + String.format("%02x", result));
         return result;
+    }
+
+    public void sendNote(int note, int velocity) {
+//        public MIDIMessage(int sequence, int timestamp, int ssrc, int status, int channel, int note, int velocity) {
+        Log.d(TAG,"sendNote: "+note+":"+velocity);
+        for(int i = 0; i < streams.size(); i++) {
+            MIDIMessage m = streams.get(streams.keyAt(i)).getMessage(++messageSequence, (int) getNow(), note, velocity);
+            Log.d(TAG,"message: "+m.toString());
+            messageChannel.sendMIDI(m, true);
+        }
     }
 
     public void startListening() {

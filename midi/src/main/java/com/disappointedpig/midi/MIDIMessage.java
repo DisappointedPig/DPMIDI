@@ -77,7 +77,7 @@ public class MIDIMessage extends AbstractMIDIPacket {
 
     @Override
     public String toString() {
-        return("status:"+midi_channel_status+" channel:"+midi_channel+" note:"+midi_note+" velocity:"+midi_velocity);
+        return("sequence:"+ rttp_sequence_number+" timestamp"+rttp_timestamp +"status:"+midi_channel_status+" channel:"+midi_channel+" note:"+midi_note+" velocity:"+midi_velocity+" destination:"+destination_ip.toString()+":"+destination_port);
     }
 //    public void dumpToLog() {
 //        switch(command) {

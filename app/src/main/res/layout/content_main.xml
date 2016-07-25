@@ -38,6 +38,11 @@
             android:layout_alignTop="@+id/textView"
             android:layout_toRightOf="@+id/textView"
             android:layout_toEndOf="@+id/textView" />
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Test"
+            android:id="@+id/testMIDIButton"/>
     </LinearLayout>
     <ListView
         android:layout_width="wrap_content"

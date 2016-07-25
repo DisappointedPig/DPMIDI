@@ -16,6 +16,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -109,6 +110,7 @@ public class MainActivity extends AppCompatActivity {
         ToggleButton midiToggle = (ToggleButton) findViewById(R.id.midiToggleButton);
         ToggleButton midiServiceToggle = (ToggleButton) findViewById(R.id.midiServiceToggleButton);
 
+
         midiToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
@@ -140,6 +142,13 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        Button testMIDIButton = (Button) findViewById(R.id.testMIDIButton);
+        testMIDIButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sendTestMIDI();
+            }
+        });
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -216,6 +225,14 @@ public class MainActivity extends AppCompatActivity {
         bindService(bindintent, midiServiceConnection, Context.BIND_AUTO_CREATE);
 
     }
+
+    public void sendTestMIDI() {
+//        MIDIMessage message = MIDISession.getInstance().sendNote(41,127);
+//        if(message != null) {
+            MIDISession.getInstance().sendNote(41,127);
+//        }
+    }
+
 }
 
 

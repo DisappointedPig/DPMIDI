@@ -150,6 +150,20 @@ public class MIDIStream {
         return outboundEndMessage;
     }
 
+    public MIDIMessage getMessage(int sequence, int timestamp, int note, int velocity) {
+        MIDIMessage outboundMessage = new MIDIMessage(
+                sequence,
+                timestamp,
+                MIDISession.getInstance().getSSRC(),
+                9,
+                0,
+                note,
+                velocity);
+        outboundMessage.destination_ip = this.destination_ip;
+        outboundMessage.destination_port = this.destination_port;
+        return outboundMessage;
+    }
+
     public void sendSynchronization(MIDIControl inboundSyncMessage) {
 
         long now = MIDISession.getInstance().getNow();
