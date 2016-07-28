@@ -10,15 +10,12 @@ import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.disappointedpig.midi.MIDIDebugEvent;
-import com.disappointedpig.midi.MIDINameChange;
-import com.disappointedpig.midi.MIDISession;
-import com.disappointedpig.midi.MIDIStartEvent;
-import com.disappointedpig.midi.MIDIStopEvent;
-import com.disappointedpig.midi.MIDIUnknownEvent;
+import com.disappointedpig.midi2.MIDI2Session;
+import com.disappointedpig.midi2.events.MIDI2MessageEvent;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
 
 public class MIDIService extends Service {
 
@@ -33,7 +30,7 @@ public class MIDIService extends Service {
 
     private final IBinder mBinder = new MIDIServiceBinder();
 
-    private MIDISession midiSession;
+//    private MIDISession midiSession;
 
     public MIDIService() {
     }
@@ -111,55 +108,47 @@ public class MIDIService extends Service {
 
     public void startupMIDI() {
         Log.d(TAG,"startupMIDI");
-        midiSession = MIDISession.getInstance();
-        if (midiSession != null) {
-            midiSession.initMIDI(DPMIDIApplication.getAppContext(), 10);
-            midiSession.startListening();
-        }
+        MIDI2Session.getInstance().start(this);
+
+//        if (midiSession != null) {
+//            midiSession.initMIDI(DPMIDIApplication.getAppContext(), 10);
+//            midiSession.startListening();
+//        }
     }
 
     public void shutdownMIDI() {
         Log.d(TAG,"shutdownMIDI");
-        try {
-            midiSession = MIDISession.getInstance();
-            if (midiSession != null) {
-                midiSession.stopListening();
-            } else {
-                Log.d(TAG, "shutdownMIDI - failed... no midiSession");
-            }
-        }
-        catch(RuntimeException e) {
-            e.printStackTrace();
-        }
-        catch(Exception e) {
-            e.printStackTrace();
-        }
+        MIDI2Session.getInstance().stop();
     }
 
-    @Subscribe
-    public void onMIDIDebugEvent(final MIDIDebugEvent event) {
-        Log.e("MIDIService MIDI DEBUG",event.message);
-    }
-
-    @Subscribe
-    public void onMIDIStartEvent(final MIDIStartEvent event) {
-        Log.e("MIDIStartEvent","note:"+event.message.midi_note+" velocity:"+event.message.midi_velocity);
-    }
-
-    @Subscribe
-    public void onMIDIStopEvent(final MIDIStopEvent event) {
-        Log.e("MIDIStopEvent","note:"+event.message.midi_note+" velocity:"+event.message.midi_velocity);
-    }
-
-    @Subscribe
-    public void onMIDIUnknownEvent(final MIDIUnknownEvent event) {
-        Log.e("MIDIEvent","message:"+event.message.toString());
-    }
-
-    @Subscribe
-    public void onMIDINameChangeEvent(final MIDINameChange event) {
-        Log.e("MIDINameChange","name:"+ event.name);
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDI2MessageEvent(MIDI2MessageEvent e) {
 
     }
+//    @Subscribe
+//    public void onMIDIDebugEvent(final MIDIDebugEvent event) {
+//        Log.e("MIDIService MIDI DEBUG",event.message);
+//    }
+//
+//    @Subscribe
+//    public void onMIDIStartEvent(final MIDIStartEvent event) {
+//        Log.e("MIDIStartEvent","note:"+event.message.midi_note+" velocity:"+event.message.midi_velocity);
+//    }
+//
+//    @Subscribe
+//    public void onMIDIStopEvent(final MIDIStopEvent event) {
+//        Log.e("MIDIStopEvent","note:"+event.message.midi_note+" velocity:"+event.message.midi_velocity);
+//    }
+//
+//    @Subscribe
+//    public void onMIDIUnknownEvent(final MIDIUnknownEvent event) {
+//        Log.e("MIDIEvent","message:"+event.message.toString());
+//    }
+//
+//    @Subscribe
+//    public void onMIDINameChangeEvent(final MIDINameChange event) {
+//        Log.e("MIDINameChange","name:"+ event.name);
+//
+//    }
 
 }

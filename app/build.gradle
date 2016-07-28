@@ -6,7 +6,7 @@ android {
 
     defaultConfig {
         applicationId "com.disappointedpig.dpmidi"
-        minSdkVersion 8
+        minSdkVersion 9
         targetSdkVersion 24
         versionCode 1
         versionName "1.0"
@@ -26,5 +26,5 @@ dependencies {
     compile 'com.android.support:design:24.1.1'
     compile 'org.greenrobot:eventbus:3.0.0'
 
-    compile project(':midi')
+    compile project(':midi2')
 }
