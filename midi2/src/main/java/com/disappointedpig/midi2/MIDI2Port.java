@@ -1,5 +1,7 @@
 package com.disappointedpig.midi2;
 
+import android.os.AsyncTask;
+import android.os.Bundle;
 import android.util.Log;
 
 import com.disappointedpig.midi2.events.MIDI2PacketEvent;
@@ -9,6 +11,7 @@ import org.greenrobot.eventbus.EventBus;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.channels.DatagramChannel;
@@ -118,4 +121,56 @@ public class MIDI2Port implements Runnable {
             }
         }
     }
+
+    public void sendMidi(MIDI2Control control, Bundle rinfo) {
+        new SendMidiControllTask().execute(control, rinfo);
+    }
+
+    private class SendMidiControllTask extends AsyncTask<Object, Bundle, Void> {
+        @Override
+        protected Void doInBackground(Object... params) {
+
+            try {
+                doSendMIDI((MIDI2Control)params[0],(Bundle)params[1]);
+            } catch (Exception ex) {
+                // this is just a demo program, so this is acceptable behavior
+                ex.printStackTrace();
+            }
+
+            return null;
+        }
+    }
+
+    public void doSendMIDI(MIDI2Control message, Bundle rInfo) {
+        if (!listening) return;
+
+        byte[] r = message.generateBuffer();
+
+//        String output = "";
+//        for(byte a:r) {
+//            output += (String.format("%02x", a) + " ");
+//        }
+//        Log.e("MIDIPort:out",output);
+        try {
+            InetAddress destination_address = InetAddress.getByName(rInfo.getString("address"));
+            int destination_port = rInfo.getInt("port");
+            DatagramPacket response = new DatagramPacket(r, r.length, destination_address, destination_port);
+            DatagramSocket socket = getSocket();
+            if (socket != null) {
+                socket.send(response);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+//        try {
+//            DatagramSocket socket = getSocket();
+//            if (socket != null) {
+//                socket.send(response);
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+    }
+
 }

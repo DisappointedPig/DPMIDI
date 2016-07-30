@@ -3,6 +3,7 @@ package com.disappointedpig.midi2;
 import com.disappointedpig.midi2.events.MIDI2PacketEvent;
 import com.disappointedpig.midi2.utility.DataBuffer;
 import com.disappointedpig.midi2.utility.DataBufferReader;
+import com.disappointedpig.midi2.utility.OutDataBuffer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +30,7 @@ public class MIDI2Control {
     public int padding;
     public long timestamp1,timestamp2,timestamp3;
     public int sequenceNumber;
+
 
     public MIDI2Control() {}
 
@@ -90,6 +92,60 @@ public class MIDI2Control {
         return valid;
     }
 
+    public void createInvitation(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = INVITATION;
+    }
+
+    public void createInvitationAccepted(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = INVITATION_ACCEPTED;
+    }
+
+
+    public byte[] generateBuffer() {
+        OutDataBuffer buffer = new OutDataBuffer();
+
+        switch(this.command) {
+            case INVITATION:
+            case INVITATION_ACCEPTED:
+            case INVITATION_REJECTED:
+            case END:
+                buffer.write16(0xFFFF);
+                buffer.write16(getCommandKey(this.command));
+                buffer.write(this.protocol_version);
+                buffer.write(this.initiator_token);
+                buffer.write(this.ssrc);
+                buffer.write(this.name);
+                break;
+            case SYNCHRONIZATION:
+                buffer.write16(0xFFFF);
+                buffer.write16(getCommandKey(this.command));
+                buffer.write(this.ssrc);
+                buffer.write8(this.count);
+                buffer.write24(this.padding);
+                buffer.write64(this.timestamp1);
+                buffer.write64(this.timestamp2);
+                buffer.write64(this.timestamp3);
+                break;
+            case RECEIVER_FEEDBACK:
+                buffer.write16(0xFFFF);
+                buffer.write16(getCommandKey(this.command));
+                buffer.write(this.ssrc);
+                buffer.write(this.sequenceNumber);
+                break;
+            default:
+                return null;
+        }
+        return buffer.toByteArray();
+    }
+
     private static final Map<Integer, AppleMIDICommand> commandMap = new HashMap<Integer, AppleMIDICommand>();
     static {
         commandMap.put(0x494E, INVITATION);
@@ -99,6 +155,15 @@ public class MIDI2Control {
         commandMap.put(0x434B, SYNCHRONIZATION);
         commandMap.put(0x5253, RECEIVER_FEEDBACK);
         commandMap.put(0x524C, BITRATE_RECEIVE_LIMIT);
+    }
+
+    private Integer getCommandKey(AppleMIDICommand c){
+        for(Integer key : commandMap.keySet()){
+            if(commandMap.get(key).equals(c)){
+                return key; //return the first found
+            }
+        }
+        return null;
     }
 
     public enum AppleMIDICommand {

@@ -6,7 +6,9 @@ import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.disappointedpig.midi2.events.MIDI2ListeningEvent;
 import com.disappointedpig.midi2.events.MIDI2PacketEvent;
@@ -46,10 +48,12 @@ public class MIDI2Session {
 
     private Context appContext;
 //    private final Array<MIDI2Stream> streams;
-    private String localName;
-    private String bonjourName;
-    private int port;
-    private int ssrc;
+    private SparseArray<MIDI2Stream> streams;
+
+    public String localName;
+    public String bonjourName;
+    public int port;
+    public int ssrc;
     private int readyState;
     private Boolean published;
     private int lastMessageTime;
@@ -70,7 +74,7 @@ public class MIDI2Session {
         this.appContext = context;
         EventBus.getDefault().register(this);
         this.bonjourName = Build.MODEL;
-
+        this.streams = new SparseArray<MIDI2Stream>(2);
 //        try {
             controlChannel = new MIDI2Port();
             controlChannel.bind(this.port);
@@ -96,6 +100,10 @@ public class MIDI2Session {
         EventBus.getDefault().unregister(this);
     }
 
+    public void sendControlMessage(MIDI2Control control, Bundle rinfo) {
+        controlChannel.sendMidi(control, rinfo);
+    }
+
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onMIDI2ListeningEvent(MIDI2ListeningEvent e) {
 
@@ -109,12 +117,21 @@ public class MIDI2Session {
         MIDI2Control applecontrol = new MIDI2Control();
         MIDI2Message message = new MIDI2Message();
         if(applecontrol.parse(e)) {
+            if(applecontrol.isValid()) {
+                // check if this applecontrol.ssrc is known stream
+                MIDI2Stream stream = streams.get(applecontrol.ssrc);
+                if(stream == null) {
+                    // else, check if this is an invitation
+                    //       create stream and tell stream to handle invite
+                    stream = new MIDI2Stream(this);
+                    streams.put(applecontrol.ssrc, stream);
+                }
+                stream.handleControlMessage(applecontrol, e.getRInfo());
+            }
             // control packet
         } else {
             message.parseMessage(e);
         }
-
-
     }
 
 

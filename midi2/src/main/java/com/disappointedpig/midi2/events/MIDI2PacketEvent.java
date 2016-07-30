@@ -1,5 +1,6 @@
 package com.disappointedpig.midi2.events;
 
+import android.os.Bundle;
 import android.util.Log;
 
 import java.net.DatagramPacket;
@@ -16,6 +17,13 @@ public class MIDI2PacketEvent {
         data = packet.getData();
         length = packet.getLength();
         Log.d("MIDI2PacketEvent"," p:"+packet.getLength()+ " d:"+data.length);
+    }
+
+    public Bundle getRInfo() {
+        Bundle rinfo = new Bundle();
+        rinfo.putString("address",address.getHostAddress());
+        rinfo.putInt("port",port);
+        return rinfo;
     }
 
     public InetAddress getAddress() {
