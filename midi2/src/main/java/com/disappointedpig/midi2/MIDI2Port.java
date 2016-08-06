@@ -123,15 +123,34 @@ public class MIDI2Port implements Runnable {
     }
 
     public void sendMidi(MIDI2Control control, Bundle rinfo) {
-        new SendMidiControllTask().execute(control, rinfo);
+        new SendMidiControlTask().execute(control, rinfo);
     }
 
-    private class SendMidiControllTask extends AsyncTask<Object, Bundle, Void> {
+    public void sendMidi(MIDI2Message message, Bundle rinfo) {
+        new SendMidiMessageTask().execute(message, rinfo);
+    }
+
+    private class SendMidiControlTask extends AsyncTask<Object, Bundle, Void> {
         @Override
         protected Void doInBackground(Object... params) {
 
             try {
                 doSendMIDI((MIDI2Control)params[0],(Bundle)params[1]);
+            } catch (Exception ex) {
+                // this is just a demo program, so this is acceptable behavior
+                ex.printStackTrace();
+            }
+
+            return null;
+        }
+    }
+
+    private class SendMidiMessageTask extends AsyncTask<Object, Bundle, Void> {
+        @Override
+        protected Void doInBackground(Object... params) {
+
+            try {
+                doSendMIDI((MIDI2Message) params[0],(Bundle)params[1]);
             } catch (Exception ex) {
                 // this is just a demo program, so this is acceptable behavior
                 ex.printStackTrace();
@@ -171,6 +190,24 @@ public class MIDI2Port implements Runnable {
 //        } catch (IOException e) {
 //            e.printStackTrace();
 //        }
+    }
+
+    public void doSendMIDI(MIDI2Message message, Bundle rInfo) {
+        if (!listening) return;
+
+        byte[] r = message.generateBuffer();
+
+        try {
+            InetAddress destination_address = InetAddress.getByName(rInfo.getString("address"));
+            int destination_port = rInfo.getInt("port");
+            DatagramPacket response = new DatagramPacket(r, r.length, destination_address, destination_port);
+            DatagramSocket socket = getSocket();
+            if (socket != null) {
+                socket.send(response);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 }

@@ -108,6 +108,28 @@ public class MIDI2Control {
         this.command = INVITATION_ACCEPTED;
     }
 
+    public void createInvitationRejected(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = INVITATION_REJECTED;
+    }
+    public void createEnd(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = END;
+    }
+    public void createSyncronization(int ssrc, int count, long t1, long t2, long t3) {
+        this.ssrc = ssrc;
+        this.count = count;
+        this.timestamp1 = t1;
+        this.timestamp2 = t2;
+        this.timestamp3 = t3;
+        this.command = SYNCHRONIZATION;
+    }
 
     public byte[] generateBuffer() {
         OutDataBuffer buffer = new OutDataBuffer();
@@ -149,8 +171,8 @@ public class MIDI2Control {
     private static final Map<Integer, AppleMIDICommand> commandMap = new HashMap<Integer, AppleMIDICommand>();
     static {
         commandMap.put(0x494E, INVITATION);
-        commandMap.put(0x4E4F, INVITATION_ACCEPTED);
-        commandMap.put(0x4F4B, INVITATION_REJECTED);
+        commandMap.put(0x4F4B, INVITATION_ACCEPTED);
+        commandMap.put(0x4E4F, INVITATION_REJECTED);
         commandMap.put(0x4259, END);
         commandMap.put(0x434B, SYNCHRONIZATION);
         commandMap.put(0x5253, RECEIVER_FEEDBACK);

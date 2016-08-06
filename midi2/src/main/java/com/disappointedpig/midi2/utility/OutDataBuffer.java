@@ -61,6 +61,10 @@ public class OutDataBuffer {
         writeInteger24ToByteArray(anInt);
     }
 
+    public void write32(Integer anInt) {
+        writeInteger32ToByteArray(anInt);
+    }
+
     public void write64(Long aLong) {
         writeInteger64ToByteArray(aLong);
     }

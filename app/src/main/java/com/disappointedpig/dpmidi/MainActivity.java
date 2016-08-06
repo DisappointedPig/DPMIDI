@@ -17,6 +17,8 @@ import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
+import com.disappointedpig.midi2.MIDI2Session;
+
 //import android.support.design.widget.FloatingActionButton;
 //import android.support.design.widget.Snackbar;
 //import android.support.v7.widget.RecyclerView;
@@ -93,21 +95,25 @@ public class MainActivity extends AppCompatActivity {
 //        ListView listView = (ListView) findViewById(R.id.activity_listview);
 //        listView.setAdapter(adapter);
 
-//        ToggleButton midiToggle = (ToggleButton) findViewById(R.id.midiToggleButton);
+        ToggleButton midiToggle = (ToggleButton) findViewById(R.id.midiToggleButton);
         ToggleButton midiServiceToggle = (ToggleButton) findViewById(R.id.midiServiceToggleButton);
 
 
-//        midiToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-//            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-//                if (isChecked) {
-////                    updateList("midi on");
+        midiToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+//                    updateList("midi on");
 //                    startupMIDI();
-//                } else {
-////                    updateList("midi off");
+                    Bundle rinfo = new Bundle();
+                    rinfo.putString("address","172.16.1.34");
+                    rinfo.putInt("port",5008);
+                    MIDI2Session.getInstance().connect(rinfo);
+                } else {
+//                    updateList("midi off");
 //                    shutdownMIDI();
-//                }
-//            }
-//        });
+                }
+            }
+        });
 
         midiServiceToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -217,6 +223,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendTestMIDI() {
+        MIDI2Session.getInstance().sendMessage(41,127);
 //        MIDIMessage message = MIDISession.getInstance().sendNote(41,127);
 //        if(message != null) {
 //            MIDISession.getInstance().sendNote(41,127);

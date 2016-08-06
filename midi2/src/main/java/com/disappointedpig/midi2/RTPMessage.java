@@ -4,6 +4,7 @@ package com.disappointedpig.midi2;
 import com.disappointedpig.midi2.events.MIDI2PacketEvent;
 import com.disappointedpig.midi2.utility.DataBuffer;
 import com.disappointedpig.midi2.utility.DataBufferReader;
+import com.disappointedpig.midi2.utility.OutDataBuffer;
 
 public class RTPMessage {
 
@@ -12,11 +13,11 @@ public class RTPMessage {
     boolean hasExtension = false;
     int csrcCount = 0;
     boolean marker = false;
-    int payloadType = 0;
+    int payloadType = 0x61;
     int sequenceNumber = 0;
     int timestamp = 0;
     int ssrc = 0;
-
+    int[] csrcs;
     byte[] payload;
     int payload_length;
 
@@ -65,5 +66,44 @@ public class RTPMessage {
         return true;
     }
 
+    public OutDataBuffer generatePayload() {
+        OutDataBuffer buffer = new OutDataBuffer();
 
+        int firstByte = 0;
+        firstByte |= this.version << 6;
+        firstByte |= this.padding ? 0x20 : 0;
+        firstByte |= this.hasExtension ? 0x10 : 0;
+        // csrcs = 0... so just skip this
+//        firstByte |= (this.csrcs.length > 15 ? 15 : this.csrcs.length);
+
+        int secondByte = this.payloadType | (this.marker ? 0x80 : 0);
+        buffer.write8(firstByte);
+        buffer.write8(secondByte);
+        buffer.write16(sequenceNumber);
+        long t = MIDI2Session.getInstance().getNow();
+//        Log.e("RTPMessage","t:"+t+" t8:"+(t >>> 8)+" t16:"+(t >>>16)+" tint:"+(int)t);
+        timestamp = (int)t >>> 8;
+        buffer.write32(timestamp << 0);
+        buffer.write32(ssrc);
+
+        // ---------------------------------
+
+//        for (int i = 0; i < this.csrcs && i < 15; i++) {
+//            buffer.write32(this.csrcs[i], 12 + (4 * i));
+//        }
+
+//        if (this.hasExtension) {
+//            length = Math.ceil(this.extension.length / 32);
+//            buffer.write16(this.extensionHeaderId, 12 + (4 * i));
+//            buffer.write16(length, 14 + (4 * i));
+//            this.extension.copy(buffer, 16 + (4 * i));
+//        }
+
+//        buffer.write16(0x03);
+//        buffer.write8(0x09);
+//        buffer.write8(0x00);
+//        buffer.write16(note);
+//        buffer.write16(velocity);
+        return buffer;
+    }
 }

@@ -12,6 +12,8 @@ import android.util.SparseArray;
 
 import com.disappointedpig.midi2.events.MIDI2ListeningEvent;
 import com.disappointedpig.midi2.events.MIDI2PacketEvent;
+import com.disappointedpig.midi2.events.MIDI2StreamConnected;
+import com.disappointedpig.midi2.events.MIDI2StreamDisconnectEvent;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -49,6 +51,7 @@ public class MIDI2Session {
     private Context appContext;
 //    private final Array<MIDI2Stream> streams;
     private SparseArray<MIDI2Stream> streams;
+    private SparseArray<MIDI2Stream> pendingStreams;
 
     public String localName;
     public String bonjourName;
@@ -75,6 +78,7 @@ public class MIDI2Session {
         EventBus.getDefault().register(this);
         this.bonjourName = Build.MODEL;
         this.streams = new SparseArray<MIDI2Stream>(2);
+        this.pendingStreams = new SparseArray<MIDI2Stream>(2);
 //        try {
             controlChannel = new MIDI2Port();
             controlChannel.bind(this.port);
@@ -85,7 +89,7 @@ public class MIDI2Session {
 //        } catch (SocketException e) {
 //            e.printStackTrace();
 //        }
-
+            Log.d("MIDI2Session", "ssrc: "+this.ssrc);
         try {
             initializeResolveListener();
             registerService(this.port);
@@ -95,13 +99,71 @@ public class MIDI2Session {
     }
 
     public void stop() {
+
+        for(int i = 0; i < streams.size(); i++) {
+            streams.get(streams.keyAt(i)).sendEnd();
+        }
+
+        // may want to put this on a timer to check if all streams have sent 'END'
         controlChannel.stop();
         messageChannel.stop();
+
+        shutdownNSDListener();
         EventBus.getDefault().unregister(this);
     }
 
-    public void sendControlMessage(MIDI2Control control, Bundle rinfo) {
-        controlChannel.sendMidi(control, rinfo);
+    public void connect(Bundle rinfo) {
+        MIDI2Stream stream = new MIDI2Stream();
+        stream.connect(rinfo);
+        pendingStreams.put(stream.initiator_token,stream);
+
+    }
+
+    public void sendUDPMessage(MIDI2Control control, Bundle rinfo) {
+        if(rinfo.getInt("port") % 2 == 0) {
+            controlChannel.sendMidi(control, rinfo);
+        } else {
+            messageChannel.sendMidi(control, rinfo);
+        }
+    }
+
+    public void sendUDPMessage(MIDI2Message m, Bundle rinfo) {
+        if(rinfo.getInt("port") % 2 == 0) {
+            controlChannel.sendMidi(m, rinfo);
+        } else {
+            messageChannel.sendMidi(m, rinfo);
+        }
+    }
+    public void sendMessage(int note, int velocity) {
+
+        Log.d("MIDI2Session", "note:"+note+" velocity:"+velocity);
+
+        MIDI2Message message = new MIDI2Message();
+        message.createNote(note, velocity);
+        message.ssrc = this.ssrc;
+
+        for(int i = 0; i < streams.size(); i++) {
+            streams.get(streams.keyAt(i)).sendMessage(message);
+        }
+
+    }
+
+    // getNow returns a unix (long)timestamp
+    public long getNow() {
+        long hrtime = System.nanoTime()-this.startTimeHR;
+        long result = Math.round((hrtime / 1000L / 1000L / 1000L) * this.rate) ;
+        return result;
+    }
+
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDI2StreamConnected(MIDI2StreamConnected e) {
+        Log.d("MIDI2Session","onMIDI2StreamConnected");
+        MIDI2Stream stream = pendingStreams.get(e.initiator_token);
+        if(stream != null) {
+            streams.put(stream.ssrc, stream);
+        }
+        pendingStreams.delete(e.initiator_token);
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
@@ -118,12 +180,20 @@ public class MIDI2Session {
         MIDI2Message message = new MIDI2Message();
         if(applecontrol.parse(e)) {
             if(applecontrol.isValid()) {
+                Log.d("MIDI2Session","initiator_token : "+applecontrol.initiator_token);
+                MIDI2Stream pending = pendingStreams.get(applecontrol.initiator_token);
+                if(pending != null) {
+                    Log.d("MIDI2Session","got pending stream by token");
+                    pending.handleControlMessage(applecontrol,e.getRInfo());
+                    return;
+                }
                 // check if this applecontrol.ssrc is known stream
                 MIDI2Stream stream = streams.get(applecontrol.ssrc);
+
                 if(stream == null) {
                     // else, check if this is an invitation
                     //       create stream and tell stream to handle invite
-                    stream = new MIDI2Stream(this);
+                    stream = new MIDI2Stream();
                     streams.put(applecontrol.ssrc, stream);
                 }
                 stream.handleControlMessage(applecontrol, e.getRInfo());
@@ -134,8 +204,15 @@ public class MIDI2Session {
         }
     }
 
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDI2StreamDisconnectEvent(MIDI2StreamDisconnectEvent e) {
+        disconnectStream(e.stream_ssrc);
+    }
 
-
+    private void disconnectStream(int ssrc) {
+        streams.delete(ssrc);
+        Log.d("MIDI2Session","streams count:"+streams.size());
+    }
 
     public InetAddress getWifiAddress() {
 //        EventBus.getDefault().post(new OSCDebugEvent("OSCSession", "getInboundAddress"));
@@ -180,7 +257,7 @@ public class MIDI2Session {
     // --------------------------------------------
     // bonjour stuff
     //
-    public void registerService(int port) throws UnknownHostException {
+    private void registerService(int port) throws UnknownHostException {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             // Create the NsdServiceInfo object, and populate it.
             serviceInfo = new NsdServiceInfo();
@@ -214,7 +291,7 @@ public class MIDI2Session {
     }
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
-    public void initializeNSDRegistrationListener() {
+    private void initializeNSDRegistrationListener() {
         mRegistrationListener = new NsdManager.RegistrationListener() {
 
             @Override
@@ -253,7 +330,7 @@ public class MIDI2Session {
     }
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
-    public void initializeResolveListener() {
+    private void initializeResolveListener() {
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             mResolveListener = new NsdManager.ResolveListener() {
                 String TAG = "resolve:";
@@ -289,11 +366,13 @@ public class MIDI2Session {
         }
     }
 
-    public void shutdownNSDListener() {
+    private void shutdownNSDListener() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             mNsdManager.unregisterService(mRegistrationListener);
 //            mNsdManager.stopServiceDiscovery(mDiscoveryListener);
         }
 
     }
+
+
 }
