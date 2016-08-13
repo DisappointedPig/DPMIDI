@@ -10,14 +10,8 @@ import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.disappointedpig.midi2.MIDI2Session;
-import com.disappointedpig.midi2.events.MIDI2MessageEvent;
 
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
-
-public class MIDIService extends Service {
+public class MIDIService extends Service implements DPMIDIForeground.Listener {
 
     final String TAG = "MIDIService";
     int mStartMode;
@@ -39,8 +33,7 @@ public class MIDIService extends Service {
     public void onCreate() {
         super.onCreate();
         serviceIsRunning = false;
-        EventBus.getDefault().register(this);
-
+//        EventBus.getDefault().register(this);
     }
 
     public int onStartCommand(Intent intent, final int flags, int startId) {
@@ -49,6 +42,7 @@ public class MIDIService extends Service {
             Toast.makeText(this, "Still Running", Toast.LENGTH_LONG).show();
         else {
             Toast.makeText(this, "Started", Toast.LENGTH_LONG).show();
+            DPMIDIForeground.get().addListener(this);
         }
         serviceIsRunning = true;
 
@@ -59,9 +53,11 @@ public class MIDIService extends Service {
 //                int flag = 1;
                 if(key.equals("MIDIState")) {
                     if(prefs.getBoolean("MIDIState",false)) {
-                        startupMIDI();
+//                        startupMIDI();
+                        ConnectionManager.GetInstance().startMIDI();
                     } else {
-                        shutdownMIDI();
+//                        shutdownMIDI();
+                        ConnectionManager.GetInstance().stopMIDI();
                     }
                 }
             }
@@ -93,8 +89,9 @@ public class MIDIService extends Service {
     public void onDestroy() {
         Toast.makeText(this, "CMS Destroyed", Toast.LENGTH_LONG).show();
         Log.d(TAG,"destroyed");
-        shutdownMIDI();
-        EventBus.getDefault().unregister(this);
+        ConnectionManager.GetInstance().stopMIDI();
+//        shutdownMIDI();
+//        EventBus.getDefault().unregister(this);
         wifiLock.release();
     }
 
@@ -106,25 +103,25 @@ public class MIDIService extends Service {
 
 
 
-    public void startupMIDI() {
-        Log.d(TAG,"startupMIDI");
-        MIDI2Session.getInstance().start(this);
+//    public void startupMIDI() {
+//        Log.d(TAG,"startupMIDI");
+//        MIDISession.getInstance().start(this);
+//
+////        if (midiSession != null) {
+////            midiSession.initMIDI(DPMIDIApplication.getAppContext(), 10);
+////            midiSession.startListening();
+////        }
+//    }
 
-//        if (midiSession != null) {
-//            midiSession.initMIDI(DPMIDIApplication.getAppContext(), 10);
-//            midiSession.startListening();
-//        }
-    }
+//    public void shutdownMIDI() {
+//        Log.d(TAG,"shutdownMIDI");
+//        MIDISession.getInstance().stop();
+//    }
 
-    public void shutdownMIDI() {
-        Log.d(TAG,"shutdownMIDI");
-        MIDI2Session.getInstance().stop();
-    }
-
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    public void onMIDI2MessageEvent(MIDI2MessageEvent e) {
-
-    }
+//    @Subscribe(threadMode = ThreadMode.ASYNC)
+//    public void onMIDI2MessageEvent(PayloadMessageEvent e) {
+//
+//    }
 //    @Subscribe
 //    public void onMIDIDebugEvent(final MIDIDebugEvent event) {
 //        Log.e("MIDIService MIDI DEBUG",event.message);
@@ -150,5 +147,16 @@ public class MIDIService extends Service {
 //        Log.e("MIDINameChange","name:"+ event.name);
 //
 //    }
+
+    public void onBecameForeground() {
+        Log.d(TAG, "became foreground");
+
+    }
+
+    public void onBecameBackground() {
+        Log.d(TAG,"became background");
+
+
+    }
 
 }

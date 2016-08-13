@@ -1,255 +1,360 @@
 package com.disappointedpig.midi;
 
-import android.os.AsyncTask;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.Bundle;
+import android.util.Log;
+
+import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
+import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestAcceptedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestReceivedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestRejectedEvent;
+import com.disappointedpig.midi.events.MIDISyncronizationCompleteEvent;
+import com.disappointedpig.midi.events.MIDISyncronizationStartEvent;
+import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
+import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
 
 import org.greenrobot.eventbus.EventBus;
 
-import java.net.InetAddress;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
-public class MIDIStream {
+class MIDIStream {
 
-    private int debugLevel;
-    private int initiator_token;
-    private int initiator_ssrc;
-    private int ssrc;
-    private int source_port;
-    private boolean synchronization_complete;
-    private int syncnumber;
+    int initiator_token = 0;
+    int ssrc = 0;
+    private Bundle rinfo1 = null;
+    private Bundle rinfo2 = null;
+    private String name = "";
+    int lastSentSequenceNr =  (int)Math.round(Math.random() * 0xffff);
+    int firstReceivedSequenceNumber = -1;
+    int lastReceivedSequenceNumber = -1;
+    long latency = 0L;
+    private boolean isConnected = false;
+    long receiverFeedbackTimeout = 0L;
+    long lastMessageTime = 0L;
+    private long timeDifference = 0L;
+    private boolean isInitiator = false;
+    private boolean primarySyncComplete = false;
+//    long ssrc;
 
-    private InetAddress destination_ip;
-    private int destination_port;
+    private ScheduledExecutorService connectService, syncService;
+    private ScheduledFuture<?> connectFuture, syncFuture;
+    int connectTaskCount = 0, syncTaskCount=0;
 
-    private long latency;
-    private long timeDifference;
-
-    public Boolean isValidStream;
-
-    //    private InetAddress source_ip;
-    public MIDIStream() {
-        ssrc = MIDISession.getInstance().getSSRC();
-        debugLevel = MIDISession.getInstance().getDebugLevel();
-        latency = 0L;
-        timeDifference = 0L;
-        this.isValidStream = false;
-        this.synchronization_complete = false;
-        syncnumber = 0;
-    };
-
-    public MIDIStream(int it, int s, int port, int src) {
-        this.isValidStream = false;
-        this.synchronization_complete = false;
-        initiator_token = it;
-        initiator_ssrc = s;
-        source_port = port;
-        ssrc = src;
-        debugLevel = MIDISession.getInstance().getDebugLevel();
-        latency = 0L;
-        timeDifference = 0L;
+    MIDIStream() {
+        this.isConnected = false;
+        this.isInitiator = false;
+        connectService = Executors.newSingleThreadScheduledExecutor();
+        syncService = Executors.newSingleThreadScheduledExecutor();
+        connectFuture = null;
+        primarySyncComplete = false;
     }
 
-    //    public MIDIStream(MIDIMessage message, int port, int src) {
-    public MIDIStream(MIDIControl message) {
-        this.isValidStream = false;
-        this.synchronization_complete = false;
+    public class MIDITask implements Runnable {
 
-        if(true) {
-            switch(message.getCommand()) {
-                case 0x494E:// invite
-                case 0x4F4B:// invite_accept
-                    this.initiator_token = message.getInitiatorToken();
-                    this.initiator_ssrc = message.getSenderSSRC();
-                    this.destination_ip = message.source_ip;
-                    this.destination_port = message.source_port;
+        Bundle rinfo = null;
 
-                    this.source_port = message.destination_port;
-                    this.ssrc = MIDISession.getInstance().getSSRC();
-                    this.debugLevel = MIDISession.getInstance().getDebugLevel();
-                    this.latency = 0L;
-                    this.timeDifference = 0L;
-                    syncnumber = 0;
-                    this.isValidStream = true;
-                    if(this.debugLevel > 0) {
-                        EventBus.getDefault().post(new MIDIDebugEvent("MIDIStream", "source port:" + this.source_port + ":" + String.format("%02x", this.ssrc) + " " + this.destination_ip + ":" + this.destination_port + ":" + String.format("%02x", this.initiator_token) + ":" + String.format("%02x", this.initiator_ssrc)));
-                    }
-//                    Log.d("MIDIStream", "source port:" + this.source_port + ":" + String.format("%02x", this.ssrc) + " " + this.destination_ip + ":" + this.destination_port + ":" + String.format("%02x", this.initiator_token) + ":" + String.format("%02x", this.initiator_ssrc));
-                    break;
-            }
-
+        public void setBundle(Bundle b) {
+            rinfo = b;
         }
-    }
 
-
-    Handler handler = new Handler(Looper.getMainLooper());
-
-
-    private Runnable runnableCode = new Runnable() {
-        @Override
         public void run() {
-            // Do something here on the main thread
-//            sendSynchronization(null);
-            new SendSyncronizationTask().execute("testing");
-            handler.postDelayed(runnableCode, 10000);
+            try {
+                if(rinfo == null) {
+                    shutdown();
+                } else {
+                    connectTaskCount++;
+//                    Log.d("MIDITask","connectTaskCount:"+connectTaskCount +" ssrc:"+ssrc);
+                    if(connectTaskCount > 40 ) {
+                        shutdown();
+                    }
+                    sendInvitation(rinfo);
+                }
+
+            } catch (Exception e) {
+
+            }
+        }
+        void shutdown() {
 
         }
-    };
+    }
+
+    public class SyncTask implements Runnable {
+
+        Bundle rinfo = null;
 
 
-    public boolean handleMessage(MIDIControl message) {
-        MIDIControl response;
-        //long now = MIDISession.getInstance().getNow();
-        switch(message.getCommand()) {
-            case 0x494E:
-                // received invitation, need to respond
-                if(this.debugLevel > 0) {
-                    EventBus.getDefault().post(new MIDIDebugEvent("MIDIStream", "received invite"));
+        public void setBundle(Bundle b) {
+            rinfo = b;
+        }
+
+        public void run() {
+            try {
+                syncTaskCount++;
+//                Log.d("Sync","syncTaskCount:"+syncTaskCount+" timedifference:"+timeDifference);
+                sendSynchronization(null);
+                if(!primarySyncComplete && syncTaskCount > 10) {
+                    primarySyncComplete = true;
+                    EventBus.getDefault().post(new MIDISyncronizationCompleteEvent());
+                    EventBus.getDefault().post(new MIDIConnectionEstablishedEvent());
+                    resetSyncService(10000);
                 }
-                initiator_ssrc = message.getSenderSSRC();
-                initiator_token = message.getInitiatorToken();
-                this.destination_ip = message.source_ip;
-                this.destination_port = message.source_port;
-                response = new MIDIControl(0x4F4B, this.initiator_token, MIDISession.getInstance().getSSRC(), MIDISession.getInstance().getName());
-//                response.protocol = 0xFFFF;
-//                response.protocol_version = 2;
-//                response.command = 0x4F4B;
-//                response.initiator_token = initiator_token;
-//                response.ssrc = ssrc;
-//                response.name = MIDISession.getInstance().getName();
-                response.destination_port = destination_port;
-                response.destination_ip = destination_ip;
+            } catch (Exception e) {
 
-                MIDISession.getInstance().sendMIDI(response);
+            }
+        }
+        void shutdown() {
+
+        }
+    }
+
+    void connect(final Bundle rinfo) {
+        Log.d("MIDIStream","connect "+rinfo.getString("address")+":"+rinfo.getInt("port"));
+        if(isConnected) {
+            // already connected, should not reconnect with same stream
+            Log.e("MIDI2Stream","already connected");
+            return;
+        }
+        if (this.initiator_token == 0) {
+            this.initiator_token = generateRandomInteger(4);
+            Log.e("MIDIStream","generateRandomInteger for initiator initiator_token "+this.initiator_token);
+        }
+        this.isInitiator = true;
+//        currentRinfo = rinfo;
+//        new InvitationTask().execute(rinfo);
+        MIDITask t = new MIDITask();
+        t.setBundle(rinfo);
+
+        connectFuture = connectService.scheduleAtFixedRate(t, 0, 1, SECONDS);
+
+        connectService.schedule(new Runnable() {
+            @Override
+            public void run() {
+                connectFuture.cancel(false);
+            }
+        }, 1, MINUTES);
+    }
+
+    private void sendInvitation(Bundle rinfo) {
+        Log.d("MIDIStream","sendInvitation "+rinfo.getString("address")+":"+rinfo.getInt("port"));
+        MIDIControl invite = new MIDIControl();
+        invite.createInvitation(initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
+        MIDISession.getInstance().sendUDPMessage(invite,rinfo);
+    }
+
+    private int generateRandomInteger(int octets) {
+        return (int) Math.round(Math.random() * Math.pow(2, 8 * octets));
+    }
+
+    void handleControlMessage(MIDIControl control, Bundle rinfo) {
+        switch(control.command) {
+            case INVITATION:
+                handleInvitation(control,rinfo);
                 break;
-            case 0x434B:
-                // received sync, respond in kind
-                sendSynchronization(message);
+            case INVITATION_ACCEPTED:
+                handleInvitationAccepted(control, rinfo);
                 break;
-            case 0x4259:
-                if(this.debugLevel > 0) {
-                    EventBus.getDefault().post(new MIDIDebugEvent("MIDIStream","end session"));
-                }
-//                Log.d("MIDIStream", "end session");
-                shutdownStream();
+            case INVITATION_REJECTED:
+                handleInvitationRejected(control, rinfo);
+                break;
+            case END:
+                handleEnd();
+                break;
+            case SYNCHRONIZATION:
+                sendSynchronization(control);
+                break;
+            case RECEIVER_FEEDBACK:
+            case BITRATE_RECEIVE_LIMIT:
+                Log.d("MIDI2Stream", "unhandled command");
                 break;
         }
-        return true;
     }
 
-    public void shutdownStream() {
-        handler.removeCallbacks(runnableCode);
-//        MIDISession.getInstance().closeStream(this.ssrc);
+    private void handleInvitation(MIDIControl control, Bundle rinfo) {
+        if(rinfo1 == null) {
+            rinfo1 = rinfo;
+            this.initiator_token = control.initiator_token;
+            this.name = control.name;
+            this.ssrc = control.ssrc;
+            Log.d("MIDI2Stream", "Got an invitation from " + control.name + " on channel 1");
+        } else if(rinfo2 == null) {
+            rinfo2 = rinfo;
+            Log.d("MIDI2Stream", "Got an invitation from " + control.name + " on channel 2");
+            this.isConnected = true;
+        }
+        this.sendInvitationAccepted(rinfo);
     }
 
-    public MIDIControl getEndMessage() {
-        MIDIControl outboundEndMessage = new MIDIControl(0x4259,this.initiator_token,MIDISession.getInstance().getSSRC(),MIDISession.getInstance().getName());
-        outboundEndMessage.destination_ip = this.destination_ip;
-        outboundEndMessage.destination_port = this.destination_port;
+    private void handleInvitationAccepted(MIDIControl control, Bundle rinfo) {
 
-        return outboundEndMessage;
+        if (!this.isConnected && this.rinfo1 == null) {
+            connectFuture.cancel(true);
+            rinfo1 = rinfo;
+            Log.d("MIDI2Stream", "invite accepted by " + control.name + " on channel 1");
+            rinfo.putInt("port",rinfo.getInt("port")+1);
+            connectTaskCount = 0;
+            Log.d("MIDI2Stream","shutdown connect");
+            connect(rinfo);
+        } else if(!this.isConnected && rinfo2 == null) {
+            connectFuture.cancel(true);
+            Log.d("MIDI2Stream","shutdown connect");
+            connectTaskCount = 0;
+
+            this.isConnected = true;
+            this.name = control.name;
+            this.ssrc = control.ssrc;
+            rinfo2 = rinfo;
+            Log.d("MIDI2Stream", "Data channel to " + control.name + " established");
+            Log.d("MIDI2Stream", "name: "+this.name+" ssrc:"+this.ssrc);
+            EventBus.getDefault().post(new StreamConnectedEvent(this.initiator_token));
+            EventBus.getDefault().post(new MIDIConnectionRequestAcceptedEvent());
+
+            resetSyncService(1500);
+        } else {
+            Log.d("MIDI2Stream","unhandled invitation accept");
+        }
     }
 
-    public MIDIMessage getMessage(int sequence, int timestamp, int note, int velocity) {
-        MIDIMessage outboundMessage = new MIDIMessage(
-                sequence,
-                timestamp,
-                MIDISession.getInstance().getSSRC(),
-                9,
-                0,
-                note,
-                velocity);
-        outboundMessage.destination_ip = this.destination_ip;
-        outboundMessage.destination_port = this.destination_port;
-        return outboundMessage;
+    private void resetSyncService(int time) {
+
+        Log.d("MIDI2Stream","resetSyncService "+time);
+        if(!primarySyncComplete) {
+            EventBus.getDefault().post(new MIDISyncronizationStartEvent());
+        }
+        if(syncFuture != null) {
+            syncFuture.cancel(true);
+        }
+
+        SyncTask t = new SyncTask();
+        syncFuture = syncService.scheduleAtFixedRate(t, 0, time, MILLISECONDS);
+
+        syncService.schedule(new Runnable() {
+            @Override
+            public void run() {
+                connectFuture.cancel(false);
+            }
+        }, 1, MINUTES);
     }
 
-    public void sendSynchronization(MIDIControl inboundSyncMessage) {
+    private void handleInvitationRejected(MIDIControl control, Bundle rinfo) {
+//        connectService.shutdownNow();
+//        connectFuture.cancel(true);
+        connectFuture.cancel(true);
+        EventBus.getDefault().post(new MIDIConnectionRequestRejectedEvent());
+    }
 
+    private void handleEnd() {
+        this.isConnected = false;
+        // shutdown sync
+//        connectFuture.cancel(true);
+//        connectService.shutdown();
+        if(connectFuture != null && !connectFuture.isCancelled()) {
+            connectFuture.cancel(true);
+        }
+        if(syncFuture != null && !syncFuture.isCancelled()) {
+            syncFuture.cancel(true);
+        }
+        EventBus.getDefault().post(new MIDIConnectionEndEvent());
+        EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
+    }
+
+    private void sendInvitationAccepted(Bundle rinfo) {
+        MIDIControl message = new MIDIControl();
+
+        message.createInvitationAccepted(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
+        MIDISession.getInstance().sendUDPMessage(message, rinfo);
+
+        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent());
+
+    }
+
+    public void sendInvitationRejected(Bundle rinfo) {
+        MIDIControl message = new MIDIControl();
+        message.createInvitationRejected(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
+        MIDISession.getInstance().sendUDPMessage(message, rinfo);
+
+    }
+
+
+    public void sendMessage(MIDIMessage m) {
+        Log.d("MIDI2Stream","sendMessage");
+        this.lastSentSequenceNr = (this.lastSentSequenceNr + 1) % 0x10000;
+        m.sequenceNumber = this.lastSentSequenceNr;
+        MIDISession.getInstance().sendUDPMessage(m, rinfo2);
+    }
+
+    public void sendEnd() {
+        Log.d("MIDI2Stream","sendEnd");
+        MIDIControl message = new MIDIControl();
+        message.createEnd(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
+        MIDISession.getInstance().sendUDPMessage(message, rinfo1);
+//        connectFuture.cancel(true);
+//        connectService.shutdown();
+//        syncService.shutdown();
+        EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
+    }
+
+
+    private void sendSynchronization(MIDIControl inboundSyncMessage) {
         long now = MIDISession.getInstance().getNow();
         MIDIControl outboundSyncMessage;
-        int count = (inboundSyncMessage != null) ? inboundSyncMessage.sync_count : -1;
+        int count = (inboundSyncMessage != null) ? inboundSyncMessage.count : -1;
         if(count == 3) { count = -1; }
+//        Log.d("MIDI2Stream","sendSyncronization "+count);
 
 //        int padding = (inboundSyncMessage != null) ? inboundSyncMessage.sync_padding : 0;
 
 
-        outboundSyncMessage = new MIDIControl(  MIDISession.getInstance().getSSRC(),
+        outboundSyncMessage = new MIDIControl();
+        outboundSyncMessage.createSyncronization(
+                MIDISession.getInstance().ssrc,
                 count+1,
-                (count != -1) ? inboundSyncMessage.sync_timestamp1 : 0,
-                (count != -1) ? inboundSyncMessage.sync_timestamp2 : 0,
-                (count != -1) ? inboundSyncMessage.sync_timestamp3 : 0
-        );
+                (count != -1) ? inboundSyncMessage.timestamp1 : 0,
+                (count != -1) ? inboundSyncMessage.timestamp2 : 0,
+                (count != -1) ? inboundSyncMessage.timestamp3 : 0);
 
-        outboundSyncMessage.destination_ip = this.destination_ip;
-        outboundSyncMessage.destination_port = this.destination_port;
+//        outboundSyncMessage.destination_ip = this.destination_ip;
+//        outboundSyncMessage.destination_port = this.destination_port;
 
         switch(count) {
             case -1: // send count:0
-                outboundSyncMessage.sync_timestamp1 = now;
-                outboundSyncMessage.sync_timestamp2 = (timeDifference != 0L) ? now - timeDifference : 0L;
-                outboundSyncMessage.sync_timestamp3 = (timeDifference != 0L) ? now + timeDifference : 0L;
+                outboundSyncMessage.timestamp1 = now;
+                outboundSyncMessage.timestamp2 = (timeDifference != 0L) ? now - timeDifference : 0L;
+                outboundSyncMessage.timestamp3 = (timeDifference != 0L) ? now + timeDifference : 0L;
                 break;
             case 0: // received count:0, respond count:1
-                outboundSyncMessage.sync_timestamp2 = now;
-                outboundSyncMessage.sync_timestamp3 = now - timeDifference;
+                outboundSyncMessage.timestamp2 = now;
+                outboundSyncMessage.timestamp3 = now - timeDifference;
                 break;
             case 1: // received count:1, respond count:2
 //                outboundSyncMessage.sync_timestamp3 = now;
 //                latency = inboundSyncMessage.sync_timestamp3 - inboundSyncMessage.sync_timestamp1;
 //                timeDifference = Math.round(inboundSyncMessage.sync_timestamp3-inboundSyncMessage.sync_timestamp2) - latency;
 
-                timeDifference = (inboundSyncMessage.sync_timestamp3 - inboundSyncMessage.sync_timestamp1) / 2;
-                timeDifference = inboundSyncMessage.sync_timestamp3 + timeDifference - now;
-                outboundSyncMessage.sync_timestamp3 = now;
+                timeDifference = (inboundSyncMessage.timestamp3 - inboundSyncMessage.timestamp1) / 2;
+                timeDifference = inboundSyncMessage.timestamp3 + timeDifference - now;
+                outboundSyncMessage.timestamp3 = now;
                 break;
             case 2:  // received count:2, sending nothing
                      /* compute media delay */
 //                diff = ( command->data.sync.timestamp3 - command->data.sync.timestamp1 ) / 2;
                       /* approximate time difference between peer and self */
 //                diff = command->data.sync.timestamp3 + diff - timestamp;
-                timeDifference = (inboundSyncMessage.sync_timestamp3 - inboundSyncMessage.sync_timestamp1) / 2;
-                timeDifference = inboundSyncMessage.sync_timestamp3 + timeDifference - now;
+                timeDifference = (inboundSyncMessage.timestamp3 - inboundSyncMessage.timestamp1) / 2;
+                timeDifference = inboundSyncMessage.timestamp3 + timeDifference - now;
 
-                if(!synchronization_complete) { ++syncnumber;
-                    if(syncnumber >=3) {
-                        synchronization_complete = true;
-                        if(this.debugLevel > 0) {
-                            EventBus.getDefault().post(new MIDIDebugEvent("MIDIStream","Syncroization complete"));
-                        }
-
-                        // do periodic sync
-                        if(isValidStream) {
-                            new SendSyncronizationTask().execute("testing");
-                            handler.postDelayed(runnableCode, 10000); // every 10 seconds
-                        }
-                    }
-                }
-
-//                Log.d("MIDIStream","SyncNumber: "+syncnumber);
-                return;
         }
-//        Log.d("MIDIStream", "sendSync " + outboundSyncMessage.sync_count + " now: " + String.format("%02x", now) + " timeDifference:" + timeDifference);
-
-        MIDISession.getInstance().sendMIDI(outboundSyncMessage);
-    }
-
-
-    private class SendSyncronizationTask extends AsyncTask<String, Void, Void> {
-        @Override
-        protected Void doInBackground(String... params) {
-
-            try {
-                sendSynchronization(null);
-            } catch (Exception ex) {
-                // this is just a demo program, so this is acceptable behavior
-                ex.printStackTrace();
-            }
-
-
-            return null;
+//        Log.d("MIDI2Stream","about to send sync");
+        if(outboundSyncMessage.count < 3) {
+            MIDISession.getInstance().sendUDPMessage(outboundSyncMessage, rinfo2);
         }
-    }
 
+    }
 
 }

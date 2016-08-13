@@ -10,6 +10,8 @@ public class DPMIDIApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
+        DPMIDIForeground.init(this);
+
         DPMIDIApplication.context = getApplicationContext();
 
     }

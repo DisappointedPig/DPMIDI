@@ -14,40 +14,79 @@
     tools:context="com.disappointedpig.dpmidi.MainActivity"
     tools:showIn="@layout/activity_main">
 
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-
-        <ToggleButton
+        <TextView
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="MIDI"
-            android:id="@+id/midiToggleButton"
-            android:checked="false"
-            android:layout_alignTop="@+id/textView"
-            android:layout_toRightOf="@+id/textView"
-            android:layout_toEndOf="@+id/textView" />
+            android:layout_height="match_parent"
+            android:text="MIDI State:"
+            />
         <ToggleButton
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="MIDIService"
             android:id="@+id/midiServiceToggleButton"
             android:checked="false"
-            android:layout_alignTop="@+id/textView"
-            android:layout_toRightOf="@+id/textView"
-            android:layout_toEndOf="@+id/textView" />
+            />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="not running"
+            android:id="@+id/midiStatus"/>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="Send Invite"
+            android:id="@+id/midiInviteButton"
+            android:checked="false"
+            />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text=""
+            android:id="@+id/midiOutInviteStatus"
+            />
+    </LinearLayout>
+
+
+    <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
         <Button
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Test"
+            android:text="Send MIDI 41/127"
             android:id="@+id/testMIDIButton"/>
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Test HB"
+            android:id="@+id/testheartbeat"/>
     </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="no connection"
+            android:id="@+id/midiConnectionStatus"
+            />
+    </LinearLayout>
+
     <ListView
         android:layout_width="wrap_content"
-        android:layout_height="459dp"
-        android:layout_weight="1"
+        android:layout_height="300dp"
         android:id="@+id/activity_listview"
         android:layout_below="@+id/toggleButton"
         android:layout_alignParentLeft="true"

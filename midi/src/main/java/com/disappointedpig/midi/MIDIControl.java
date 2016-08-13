@@ -1,128 +1,206 @@
 package com.disappointedpig.midi;
 
-import com.disappointedpig.midi.utility.MIDIJavaToByteArrayConverter;
+import com.disappointedpig.midi.internal_events.PacketEvent;
+import com.disappointedpig.midi.utility.DataBuffer;
+import com.disappointedpig.midi.utility.DataBufferReader;
+import com.disappointedpig.midi.utility.OutDataBuffer;
 
-import java.net.InetAddress;
+import java.util.HashMap;
+import java.util.Map;
 
-public class MIDIControl extends AbstractMIDIPacket {
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.BITRATE_RECEIVE_LIMIT;
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.END;
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.INVITATION;
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.INVITATION_ACCEPTED;
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.INVITATION_REJECTED;
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.RECEIVER_FEEDBACK;
+import static com.disappointedpig.midi.MIDIControl.AppleMIDICommand.SYNCHRONIZATION;
 
-    public int source_port;
-    public InetAddress source_ip;
-    public int destination_port;
-    public InetAddress destination_ip;
+public class MIDIControl {
 
-    private int command_protocol;
-    private int control_command;
-    private int control_protocol_version;
+    private Boolean valid;
+    private DataBuffer m;
+    public AppleMIDICommand command;
 
-    private int initiator_token;
-    private int sender_ssrc;
-    private String sender_name;
+    public int protocol_version;
+    public int initiator_token;
+    public int ssrc;
+    public String name;
+    public int count;
+    public int padding;
+    public long timestamp1,timestamp2,timestamp3;
+    public int sequenceNumber;
 
-    public int sync_count;
-    private int sync_padding;
-    public long sync_timestamp1;
-    public long sync_timestamp2;
-    public long sync_timestamp3;
 
-    private int sequence_number;
+    public MIDIControl() {}
 
-    public MIDIControl() {
-        this.command_protocol = 0xFFFF;
-        this.control_protocol_version = 0x00000002;
-    }
+    public boolean parse(PacketEvent packet) {
+        this.valid = false;
+        final DataBuffer rawInput = new DataBuffer(packet.getData(),packet.getLength());
+        final DataBufferReader reader = new DataBufferReader();
+        int protocol = reader.read16(rawInput);
+        if(protocol == 0xffff) {
+            command = commandMap.get(reader.read16(rawInput));
+            switch (command) {
+                case INVITATION:
+                case INVITATION_ACCEPTED:
+                case INVITATION_REJECTED:
+                case END:
+                    this.valid = true;
+                    protocol_version = reader.readInteger(rawInput);
+                    initiator_token = reader.readInteger(rawInput);
+                    ssrc = reader.readInteger(rawInput);
+                    name = reader.readString(rawInput);
+//                    this.version = buffer.readUInt32BE(4);
+//                    this.token = buffer.readUInt32BE(8);
+//                    this.ssrc = buffer.readUInt32BE(12);
+//                    this.name = buffer.toString('utf-8', 16);
 
-    public MIDIControl(int command, int token, int ssrc, String name) {
-        this.command_protocol = 0xFFFF;
-        this.control_protocol_version = 0x00000002;
-        setControlCommand(command);
-        setInitiatorToken(token);
-        setSenderSSRC(ssrc);
-        setSenderName(name);
-    }
+                    break;
+                case SYNCHRONIZATION:
+                    this.valid = true;
+                    ssrc = reader.readInteger(rawInput);
+                    count = reader.read8(rawInput);
+                    padding = reader.read24(rawInput);
+                    timestamp1 = reader.readUnsignedInteger64(rawInput);
+                    timestamp2 = reader.readUnsignedInteger64(rawInput);
+                    timestamp3 = reader.readUnsignedInteger64(rawInput);
+//                    this.ssrc = buffer.readUInt32BE(4, 8);
+//                    this.count = buffer.readUInt8(8);
+//                    this.padding = (buffer.readUInt8(9) << 0xF0) + buffer.readUInt16BE(10);
+//                    this.timestamp1 = buffer.slice(12, 20); //[buffer.readUInt32BE(12), buffer.readUInt32BE(16)];
+//                    this.timestamp2 = buffer.slice(20, 28); //[buffer.readUInt32BE(20), buffer.readUInt32BE(24)];
+//                    this.timestamp3 = buffer.slice(28, 36); //[buffer.readUInt32BE(28), buffer.readUInt32BE(32)];
+                    break;
+                case RECEIVER_FEEDBACK:
+                    this.valid = true;
+                    ssrc = reader.readInteger(rawInput);
+                    sequenceNumber = reader.read16(rawInput);
+//                    this.ssrc = buffer.readUInt32BE(4, 8);
+//                    this.sequenceNumber = buffer.readUInt16BE(8);
+                    break;
+                case BITRATE_RECEIVE_LIMIT:
+                    this.valid = true;
+                    break;
 
-    public MIDIControl(int ssrc, int count, long timestamp1, long timestamp2, long timestamp3) {
-        this.command_protocol = 0xFFFF;
-        setControlCommand(0x434B);
-        setSenderSSRC(ssrc);
-        setSyncCount(count);
-        setSyncPadding(0xFFFFFF);
-        setSyncTimestamp1(timestamp1);
-        setSyncTimestamp2(timestamp2);
-        setSyncTimestamp3(timestamp3);
-    }
-
-    public MIDIControl(int ssrc, int sequence) {
-        this.command_protocol = 0xffff;
-        setControlCommand(0x5253);
-        setSenderSSRC(ssrc);
-        setSequenceNumber(sequence);
-    }
-
-    protected byte[] computeByteArray(MIDIJavaToByteArrayConverter stream) {
-
-        switch(this.control_command) {
-            case 0x494E:    // invitation
-            case 0x4F4B:    // invitation accepted
-            case 0x4E4F:    // invitation rejected
-                stream.write16(this.command_protocol);
-                stream.write16(this.control_command);
-                stream.write(this.control_protocol_version);
-                stream.write(this.initiator_token);
-                stream.write(this.sender_ssrc);
-                stream.write(this.sender_name);
-                break;
-            case 0x434B:    // synchronization
-                stream.write16(this.command_protocol);
-                stream.write16(this.control_command);
-                stream.write(this.sender_ssrc);
-                stream.write8(this.sync_count);
-                stream.write24(this.sync_padding);
-                stream.write64(this.sync_timestamp1);
-                stream.write64(this.sync_timestamp2);
-                stream.write64(this.sync_timestamp3);
-                break;
-            case 0x4259:    // end session
-                stream.write16(this.command_protocol);
-                stream.write16(this.control_command);
-                stream.write(this.control_protocol_version);
-                stream.write(this.initiator_token);
-                stream.write(this.sender_ssrc);
-                break;
-            case 0x5253:    // receiver feedback
-                stream.write16(this.command_protocol);
-                stream.write16(this.control_command);
-                stream.write(this.sender_ssrc);
-                stream.write(this.sequence_number);
-            case 0x524C:    // bitrate receive limit
-                // I have no idea what this is supposed to do
-                break;
+            }
         }
-        return stream.toByteArray();
+        return valid;
     }
 
-    public void setControlCommand(int command) { this.control_command = command & 0xffff; }
-    public void setControlProtocolVersion(int version) { this.control_protocol_version = version & 0xffff; }
-    public void setInitiatorToken(int token) { this.initiator_token = token; }
-    public void setSenderSSRC(int ssrc) { this.sender_ssrc = ssrc; }
-    public void setSenderName(String name) { this.sender_name = name; }
-    public void setSyncCount(int count) { this.sync_count = count & 0xff; }
-    public void setSyncPadding(int padding) { this.sync_padding = padding & 0xffffff; }
-    public void setSyncTimestamp1(long timestamp1) { this.sync_timestamp1 = timestamp1; }
-    public void setSyncTimestamp2(long timestamp2) { this.sync_timestamp2 = timestamp2; }
-    public void setSyncTimestamp3(long timestamp3) { this.sync_timestamp3 = timestamp3; }
-    public void setSequenceNumber(int sequence) { this.sequence_number = sequence; }
-
-    public int getCommand() {
-        return this.control_command;
-    }
-    public int getSenderSSRC() {
-        return this.sender_ssrc;
+    public Boolean isValid() {
+        return valid;
     }
 
-    public int getInitiatorToken() {
-        return this.initiator_token;
+    public void createInvitation(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = INVITATION;
+    }
+
+    public void createInvitationAccepted(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = INVITATION_ACCEPTED;
+    }
+
+    public void createInvitationRejected(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = INVITATION_REJECTED;
+    }
+    public void createEnd(int token, int ssrc, String name) {
+        this.name = name;
+        this.initiator_token = token;
+        this.ssrc = ssrc;
+        this.protocol_version = 2;
+        this.command = END;
+    }
+    public void createSyncronization(int ssrc, int count, long t1, long t2, long t3) {
+        this.ssrc = ssrc;
+        this.count = count;
+        this.timestamp1 = t1;
+        this.timestamp2 = t2;
+        this.timestamp3 = t3;
+        this.command = SYNCHRONIZATION;
+    }
+
+    public byte[] generateBuffer() {
+        OutDataBuffer buffer = new OutDataBuffer();
+
+        switch(this.command) {
+            case INVITATION:
+            case INVITATION_ACCEPTED:
+            case INVITATION_REJECTED:
+            case END:
+                buffer.write16(0xFFFF);
+                buffer.write16(getCommandKey(this.command));
+                buffer.write(this.protocol_version);
+                buffer.write(this.initiator_token);
+                buffer.write(this.ssrc);
+                buffer.write(this.name);
+                break;
+            case SYNCHRONIZATION:
+                buffer.write16(0xFFFF);
+                buffer.write16(getCommandKey(this.command));
+                buffer.write(this.ssrc);
+                buffer.write8(this.count);
+                buffer.write24(this.padding);
+                buffer.write64(this.timestamp1);
+                buffer.write64(this.timestamp2);
+                buffer.write64(this.timestamp3);
+                break;
+            case RECEIVER_FEEDBACK:
+                buffer.write16(0xFFFF);
+                buffer.write16(getCommandKey(this.command));
+                buffer.write(this.ssrc);
+                buffer.write(this.sequenceNumber);
+                break;
+            default:
+                return null;
+        }
+        return buffer.toByteArray();
+    }
+
+    private static final Map<Integer, AppleMIDICommand> commandMap = new HashMap<Integer, AppleMIDICommand>();
+    static {
+        commandMap.put(0x494E, INVITATION);
+        commandMap.put(0x4F4B, INVITATION_ACCEPTED);
+        commandMap.put(0x4E4F, INVITATION_REJECTED);
+        commandMap.put(0x4259, END);
+        commandMap.put(0x434B, SYNCHRONIZATION);
+        commandMap.put(0x5253, RECEIVER_FEEDBACK);
+        commandMap.put(0x524C, BITRATE_RECEIVE_LIMIT);
+    }
+
+    private Integer getCommandKey(AppleMIDICommand c){
+        for(Integer key : commandMap.keySet()){
+            if(commandMap.get(key).equals(c)){
+                return key; //return the first found
+            }
+        }
+        return null;
+    }
+
+    public enum AppleMIDICommand {
+        NOOP,
+        INVITATION,
+        INVITATION_ACCEPTED,
+        INVITATION_REJECTED,
+        END,
+        SYNCHRONIZATION,
+        RECEIVER_FEEDBACK,
+        BITRATE_RECEIVE_LIMIT
     }
 
 
 }
+
+
+
