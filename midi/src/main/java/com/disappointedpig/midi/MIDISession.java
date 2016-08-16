@@ -185,6 +185,24 @@ public class MIDISession {
         }
     }
 
+    public void sendMessage(Bundle m) {
+        if(published_bonjour && streams.size() > 0) {
+            Log.d("MIDISession", "sendMessage c:"+m.getInt("command",0x09)+" ch:"+m.getInt("channel",0)+" n:"+m.getInt("note",0)+" v:"+m.getInt("velocity",0));
+
+            MIDIMessage message = new MIDIMessage();
+            message.createNote(
+                    m.getInt("command",0x09),
+                    m.getInt("channel",0),
+                    m.getInt("note",0),
+                    m.getInt("velocity",0));
+            message.ssrc = this.ssrc;
+
+            for (int i = 0; i < streams.size(); i++) {
+                streams.get(streams.keyAt(i)).sendMessage(message);
+            }
+        }
+    }
+
     public void sendMessage(int note, int velocity) {
         if(published_bonjour && streams.size() > 0) {
             Log.d("MIDISession", "note:" + note + " velocity:" + velocity);

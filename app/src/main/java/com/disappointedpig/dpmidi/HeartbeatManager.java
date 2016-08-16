@@ -1,6 +1,5 @@
 package com.disappointedpig.dpmidi;
 
-
 import android.os.Bundle;
 import android.util.Log;
 
@@ -116,7 +115,7 @@ public class HeartbeatManager {
                 public void run() {
                     heartbeatFuture.cancel(false);
                 }
-            }, 100, MILLISECONDS);
+            }, 10, MILLISECONDS);
         }
     }
 }

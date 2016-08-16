@@ -6,7 +6,6 @@ import android.util.Log;
 import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
 import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestAcceptedEvent;
-import com.disappointedpig.midi.events.MIDIConnectionRequestReceivedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestRejectedEvent;
 import com.disappointedpig.midi.events.MIDISyncronizationCompleteEvent;
 import com.disappointedpig.midi.events.MIDISyncronizationStartEvent;
@@ -88,7 +87,6 @@ class MIDIStream {
     public class SyncTask implements Runnable {
 
         Bundle rinfo = null;
-
 
         public void setBundle(Bundle b) {
             rinfo = b;

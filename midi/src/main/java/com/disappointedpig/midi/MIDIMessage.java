@@ -54,6 +54,12 @@ public class MIDIMessage extends RTPMessage {
         return midi;
     }
 
+    public void createNote(int channel_status, int channel, int note, int velocity) {
+        this.channel_status = channel_status;
+        this.channel = channel;
+        this.note = note;
+        this.velocity = velocity;
+    }
     public void createNote(int note, int velocity) {
         this.note = note;
         this.velocity = velocity;
