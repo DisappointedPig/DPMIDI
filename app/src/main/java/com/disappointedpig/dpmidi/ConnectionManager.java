@@ -85,6 +85,7 @@ public class ConnectionManager {
         MIDISession midi = MIDISession.getInstance();
         if(midi != null) {
             midi.init(DPMIDIApplication.getAppContext());
+            midi.setBonjourName("testing");
             midi.start();
             midiRunning = true;
             setMIDIState(ConnectionState.RUNNING);

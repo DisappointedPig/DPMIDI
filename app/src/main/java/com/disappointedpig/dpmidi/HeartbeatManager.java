@@ -25,9 +25,12 @@ public class HeartbeatManager {
     /*
         heartbeat bundle
             "type" int  MIDI|OSC
+
             "note" int
             "velocity" int
+
             "address"   string
+            "port"      int
             "message"   string
 
      */

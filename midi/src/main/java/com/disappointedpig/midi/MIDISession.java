@@ -12,12 +12,18 @@ import android.util.SparseArray;
 
 import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
 import com.disappointedpig.midi.events.MIDIReceivedEvent;
+import com.disappointedpig.midi.events.MIDISessionNameRegisteredEvent;
 import com.disappointedpig.midi.events.MIDISessionStartEvent;
 import com.disappointedpig.midi.events.MIDISessionStopEvent;
+import com.disappointedpig.midi.events.MIDISyncronizationCompleteEvent;
+import com.disappointedpig.midi.events.MIDISyncronizationStartEvent;
+import com.disappointedpig.midi.internal_events.ConnectionEstablishedEvent;
 import com.disappointedpig.midi.internal_events.ListeningEvent;
 import com.disappointedpig.midi.internal_events.PacketEvent;
 import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
 import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
+import com.disappointedpig.midi.internal_events.SyncronizeStartedEvent;
+import com.disappointedpig.midi.internal_events.SyncronizeStoppedEvent;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -69,14 +75,13 @@ public class MIDISession {
         return midiSessionInstance;
     }
 
-
+    private Boolean isRunning = false;
     private Context appContext;
-//    private final Array<MIDI2Stream> streams;
     private SparseArray<MIDIStream> streams;
     private SparseArray<MIDIStream> pendingStreams;
 
-    public String localName;
-    public String bonjourName;
+//    public String localName = Build.MODEL;
+    public String bonjourName = Build.MODEL;
     public int port;
     public int ssrc;
     private int readyState;
@@ -119,7 +124,6 @@ public class MIDISession {
             registered_eb = true;
         }
 
-        this.bonjourName = Build.MODEL;
         this.streams = new SparseArray<MIDIStream>(2);
         this.pendingStreams = new SparseArray<MIDIStream>(2);
 
@@ -132,10 +136,12 @@ public class MIDISession {
         try {
             initializeResolveListener();
             registerService(this.port);
+            isRunning = true;
+            EventBus.getDefault().post(new MIDISessionStartEvent());
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        EventBus.getDefault().post(new MIDISessionStartEvent());
+
     }
 
     public void stop() {
@@ -143,14 +149,14 @@ public class MIDISession {
         for(int i = 0; i < streams.size(); i++) {
             streams.get(streams.keyAt(i)).sendEnd();
         }
-
+        isRunning = false;
         // may want to put this on a timer to check if all streams have sent 'END'
         controlChannel.stop();
         messageChannel.stop();
 
         shutdownNSDListener();
-        EventBus.getDefault().post(new MIDISessionStopEvent());
 
+        EventBus.getDefault().post(new MIDISessionStopEvent());
     }
 
     public void finalize() {
@@ -164,9 +170,28 @@ public class MIDISession {
     }
 
     public void connect(Bundle rinfo) {
-        MIDIStream stream = new MIDIStream();
-        stream.connect(rinfo);
-        pendingStreams.put(stream.initiator_token,stream);
+
+        if(isRunning && !isAlreadyConnected(rinfo)) {
+            Log.d("midisession","running and not connected");
+            MIDIStream stream = new MIDIStream();
+            stream.connect(rinfo);
+            pendingStreams.put(stream.initiator_token, stream);
+        } else {
+            Log.d("midisession","not running or already connected");
+        }
+    }
+
+    private Boolean isAlreadyConnected(Bundle rinfo) {
+        for (int i = 0; i < streams.size(); i++) {
+//            streams.get(streams.keyAt(i)).sendMessage(message);
+//            String key = ((MIDIStream)streams.keyAt(i));
+//            Bundle b = (MIDIStream)streams. .getRinfo1();
+            Bundle b = streams.get(streams.keyAt(i)).getRinfo1();
+            if(b.getString("address").equals(rinfo.getString("address")) && b.getInt("port") == rinfo.getInt("port")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void sendUDPMessage(MIDIControl control, Bundle rinfo) {
@@ -233,12 +258,30 @@ public class MIDISession {
             streams.put(stream.ssrc, stream);
         }
         pendingStreams.delete(e.initiator_token);
-        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent());
+//        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent());
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onMIDI2ListeningEvent(ListeningEvent e) {
 
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onSyncronizeStartedEvent(SyncronizeStartedEvent e) {
+        Log.d("MIDISession","SyncronizeStartedEvent");
+        EventBus.getDefault().post(new MIDISyncronizationStartEvent());
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onSyncronizeStoppedEvent(SyncronizeStoppedEvent e) {
+        Log.d("MIDISession","SyncronizeStoppedEvent");
+        EventBus.getDefault().post(new MIDISyncronizationCompleteEvent());
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onConnectionEstablishedEvent(ConnectionEstablishedEvent e) {
+        Log.d("MIDISession","ConnectionEstablishedEvent");
+        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent(e.getRInfo()));
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
@@ -332,6 +375,11 @@ public class MIDISession {
     // --------------------------------------------
     // bonjour stuff
     //
+
+    public void setBonjourName(String name) {
+        this.bonjourName = name;
+    }
+
     private void registerService(int port) throws UnknownHostException {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             // Create the NsdServiceInfo object, and populate it.
@@ -340,8 +388,10 @@ public class MIDISession {
             // The name is subject to change based on conflicts
             // with other services advertised on the same network.
 
-            serviceInfo.setServiceName(bonjourName);
+            serviceInfo.setServiceName(this.bonjourName);
             serviceInfo.setServiceType("_apple-midi._udp");
+            serviceInfo.setPort(5004);
+            serviceInfo.setHost(getWifiAddress());
 //            InetAddress ip = InetAddress.getByAddress(new byte[]{(byte) 172, 16, 1, 85});
 //            InetAddress ip = InetAddress.getByAddress(new byte[]{(byte) 192, (byte)168, 58, 101});
 //            serviceInfo.setHost(ip);
@@ -376,6 +426,7 @@ public class MIDISession {
                 // with the name Android actually used.
                 bonjourName = NsdServiceInfo.getServiceName();
                 published_bonjour = true;
+                EventBus.getDefault().post(new MIDISessionNameRegisteredEvent());
 //                EventBus.getDefault().post(new MIDINameChange(bonjourName));
 
 //                System.out.print("onServiceRegistered: ");
