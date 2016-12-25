@@ -15,3 +15,25 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+
+#
+#-keepattributes **
+#
+#-dontskipnonpubliclibraryclassmembers
+#
+## EventBus 3.0
+#-keepclassmembers class ** {
+#    public void on*Event*(**);
+#    public void onMIDINameChange(**);
+#}
+#
+## EventBus 3.0 annotation
+#-keepclassmembers class * {
+#    @org.greenrobot.event.Subscribe <methods>;
+#}
+#-keep enum org.greenrobot.event.ThreadMode { *; }
+#
+## Only required if you use AsyncExecutor
+#-keepclassmembers class * extends org.greenrobot.event.util.ThrowableFailureEvent {
+#    <init>(java.lang.Throwable);
+#}
