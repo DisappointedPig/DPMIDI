@@ -310,7 +310,7 @@ public class MainActivity extends AppCompatActivity {
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onMIDISessionStartEvent(MIDISessionStartEvent event) {
         Log.d("MainActivity","MIDISessionStartEvent");
-        midiStatusTextView.setText("running");
+        midiStatusTextView.setText("running "+MIDISession.getInstance().version());
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)

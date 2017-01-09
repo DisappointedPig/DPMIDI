@@ -503,5 +503,8 @@ public class MIDISession {
 
     }
 
+    public String version() {
+        return BuildConfig.VERSION_NAME;
+    }
 
 }
