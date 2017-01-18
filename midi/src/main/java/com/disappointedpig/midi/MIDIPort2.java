@@ -54,8 +54,8 @@ public class MIDIPort2 implements Runnable {
         try {
             selector = Selector.open();
             channel = DatagramChannel.open();
-            outboundQueue = new ConcurrentLinkedQueue<DatagramPacket>();
-            inboundQueue = new ConcurrentLinkedQueue<DatagramPacket>();
+//            outboundQueue = new ConcurrentLinkedQueue<DatagramPacket>();
+//            inboundQueue = new ConcurrentLinkedQueue<DatagramPacket>();
 
             InetSocketAddress address = new InetSocketAddress(this.port);
             channel.socket().bind(address);
