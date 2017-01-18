@@ -86,7 +86,7 @@ public class ConnectionManager {
         if(midi != null) {
             midi.init(DPMIDIApplication.getAppContext());
             midi.setBonjourName("testing");
-            midi.start();
+            midi.start2();
             midiRunning = true;
             setMIDIState(ConnectionState.RUNNING);
         } else {
@@ -101,7 +101,7 @@ public class ConnectionManager {
         midiRunning = false;
         setMIDIState(ConnectionState.NOT_RUNNING);
         if(midi != null) {
-            midi.stop();
+            midi.stop2();
         } else {
             midiRunning = false;
             setMIDIState(ConnectionState.FAILED);

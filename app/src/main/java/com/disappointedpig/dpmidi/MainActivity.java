@@ -18,6 +18,7 @@ import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
+import com.disappointedpig.midi.MIDIMessage;
 import com.disappointedpig.midi.MIDISession;
 import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
 import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
@@ -163,8 +164,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString("address","172.16.1.34");
-                rinfo.putInt("port",5008);
+                rinfo.putString("address","172.16.1.23");
+                rinfo.putInt("port",5004);
                 MIDISession.getInstance().connect(rinfo);
             }
         });
@@ -260,7 +261,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendTestMIDI() {
-        MIDISession.getInstance().sendMessage(41,127);
+        Log.d("Main","sendTestMidi 41,127");
+        Bundle testMessage = new Bundle();
+        testMessage.putInt("command",0x09);
+        testMessage.putInt("channel",0);
+        testMessage.putInt("note",41);
+        testMessage.putInt("velocity",127);
+//        MIDIMessage m = MIDIMessage.newUsing(testMessage);
+        MIDISession.getInstance().sendMessage(testMessage);
+//        MIDISession.getInstance().sendMessage(41,127);
 //        MIDIMessage message = MIDISession.getInstance().sendNote(41,127);
 //        if(message != null) {
 //            MIDISession.getInstance().sendNote(41,127);

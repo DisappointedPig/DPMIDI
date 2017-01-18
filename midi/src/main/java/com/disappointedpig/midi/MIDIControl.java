@@ -1,5 +1,7 @@
 package com.disappointedpig.midi;
 
+import android.util.Log;
+
 import com.disappointedpig.midi.internal_events.PacketEvent;
 import com.disappointedpig.midi.utility.DataBuffer;
 import com.disappointedpig.midi.utility.DataBufferReader;
@@ -199,7 +201,54 @@ public class MIDIControl {
         BITRATE_RECEIVE_LIMIT
     }
 
+    public void dumppacket() {
+        Log.d("MIDIControl","------------------------------");
+        Log.d("MIDIControl","command: "+this.command.toString());
+        switch(this.command) {
+            case INVITATION:
+                Log.d("MIDIControl","protocol_version : "+this.protocol_version);
+                Log.d("MIDIControl","initiator_token : "+ String.format("0x%X",this.initiator_token));
+                Log.d("MIDIControl","ssrc : "+ String.format("0x%X",this.ssrc));
+                Log.d("MIDIControl","name : "+this.name);
+                break;
+            case INVITATION_ACCEPTED:
+                Log.d("MIDIControl","protocol_version : "+this.protocol_version);
+                Log.d("MIDIControl","initiator_token : "+ String.format("0x%X",this.initiator_token));
+                Log.d("MIDIControl","ssrc : "+ String.format("0x%X",this.ssrc));
+                Log.d("MIDIControl","name : "+this.name);
+                break;
+            case INVITATION_REJECTED:
+                Log.d("MIDIControl","protocol_version : "+this.protocol_version);
+                Log.d("MIDIControl","initiator_token : "+ String.format("0x%X",this.initiator_token));
+                Log.d("MIDIControl","ssrc : "+ String.format("0x%X",this.ssrc));
+                Log.d("MIDIControl","name : "+this.name);
+                break;
+            case RECEIVER_FEEDBACK:
+                Log.d("MIDIControl","ssrc : "+ String.format("0x%X",this.ssrc));
+                Log.d("MIDIControl","name : "+this.sequenceNumber);
+                break;
+            case BITRATE_RECEIVE_LIMIT:
+                break;
+            case END:
+                Log.d("MIDIControl","protocol_version : "+this.protocol_version);
+                Log.d("MIDIControl","initiator_token : "+ String.format("0x%X",this.initiator_token));
+                Log.d("MIDIControl","ssrc : "+ String.format("0x%X",this.ssrc));
+                break;
+            case SYNCHRONIZATION:
+                Log.d("MIDIControl","ssrc : "+ String.format("0x%X",this.ssrc));
+                Log.d("MIDIControl","count : "+this.count);
+                Log.d("MIDIControl","padding : "+ String.format("0x%X",this.padding));
+                Log.d("MIDIControl","ts1 : "+ String.format("0x%X",this.timestamp1));
+                Log.d("MIDIControl","ts2 : "+ String.format("0x%X",this.timestamp2));
+                Log.d("MIDIControl","ts3 : "+ String.format("0x%X",this.timestamp3));
 
+                break;
+            default:
+                Log.d("MIDIControl","unknown packet");
+                break;
+        }
+        Log.d("MIDIControl","------------------------------");
+    }
 }
 
 

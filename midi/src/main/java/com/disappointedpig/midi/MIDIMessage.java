@@ -21,6 +21,20 @@ public class MIDIMessage extends RTPMessage {
     private int note;
     private int velocity;
 
+    public static MIDIMessage newUsing(int cs, int c, int n, int v) {
+        MIDIMessage m = new MIDIMessage();
+        m.createNote(cs,c,n,v);
+        return m;
+    }
+
+    public static MIDIMessage newUsing(Bundle m) {
+        return newUsing(   m.getInt("command",0x09),
+                    m.getInt("channel",0),
+                    m.getInt("note",0),
+                    m.getInt("velocity",0));
+    }
+
+
     public MIDIMessage() {
     }
 
