@@ -37,8 +37,8 @@ public class MIDIPort2 implements Runnable {
     Selector selector;
     DatagramChannel channel;
 
-    Queue<DatagramPacket> outboundQueue;
-    Queue<DatagramPacket> inboundQueue;
+//    private Queue<DatagramPacket> outboundQueue;
+//    private Queue<DatagramPacket> inboundQueue;
 
     boolean isListening = false;
 
@@ -61,7 +61,7 @@ public class MIDIPort2 implements Runnable {
             channel.socket().bind(address);
             channel.configureBlocking(false);
 //            channel.socket().setSoTimeout(700);
-            int ops = channel.validOps();
+//            int ops = channel.validOps();
 
 //            SelectionKey selectKy = channel.register(selector, ops, new UDPBuffer()); // null for an attachment object
 //            SelectionKey selectKy = channel.register(selector, (SelectionKey.OP_READ), new UDPBuffer());
@@ -134,10 +134,25 @@ public class MIDIPort2 implements Runnable {
 
     public void stop() {
         isListening = false;
+
+    }
+
+    public void finalize() {
+        try {
+            channel.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            super.finalize();
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
     }
 
     public void handleRead(SelectionKey key) {
-        Log.d("MIDIPort2","handleRead");
+//        Log.d("MIDIPort2","handleRead");
 //        final byte[] buffer = new byte[BUFFER_SIZE];
 //        final DatagramPacket packet = new DatagramPacket(buffer, BUFFER_SIZE);
         DatagramChannel c = (DatagramChannel) key.channel();
@@ -181,7 +196,7 @@ public class MIDIPort2 implements Runnable {
 
     public void sendPacketImmediately(DatagramPacket packet) {
         try {
-            Log.d("MIDIPort2","sendPacketImmediately");
+//            Log.d("MIDIPort2","sendPacketImmediately");
             channel.send(ByteBuffer.wrap(packet.getData()), packet.getSocketAddress());
         } catch (SocketException e) {
             Log.e("MIDIPort2","socket exception - network is unreachable");
@@ -229,7 +244,7 @@ public class MIDIPort2 implements Runnable {
 
 
     public void sendMidi(MIDIControl control, Bundle rinfo) {
-        Log.d("MIDIPort2","sendMidi(control)");
+//        Log.d("MIDIPort2","sendMidi(control)");
         if (!isListening) {
             Log.d("MIDIPort2","not listening...");
             return;
@@ -238,7 +253,7 @@ public class MIDIPort2 implements Runnable {
             byte[] r = control.generateBuffer();
             InetAddress destination_address = InetAddress.getByName(rinfo.getString("address"));
             int destination_port = rinfo.getInt("port");
-            Log.d("MIDIPort2"," -> "+destination_address+":"+destination_port);
+//            Log.d("MIDIPort2"," -> "+destination_address+":"+destination_port);
 
             DatagramPacket response = new DatagramPacket(r, r.length, destination_address, destination_port);
 
@@ -253,7 +268,7 @@ public class MIDIPort2 implements Runnable {
     }
 
     public void sendMidi(MIDIMessage message, Bundle rinfo) {
-        Log.d("MIDIPort","sendMidi(message)");
+//        Log.d("MIDIPort","sendMidi(message)");
         if (!isListening) {
             return;
         }

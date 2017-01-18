@@ -57,6 +57,20 @@ class MIDIStream {
         primarySyncComplete = false;
     }
 
+    public void finalize() {
+        if(connectFuture != null) {
+            connectFuture.cancel(true);
+        }
+        if(syncFuture != null) {
+            syncFuture.cancel(true);
+        }
+        try {
+            super.finalize();
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
     public class MIDIConnectTask implements Runnable {
 
         Bundle rinfo = null;
@@ -75,7 +89,7 @@ class MIDIStream {
                         shutdown();
                         return;
                     }
-                    Log.d("MIDIConnectTask","connectTaskCount:"+connectTaskCount +" ssrc:"+ssrc);
+//                    Log.d("MIDIConnectTask","connectTaskCount:"+connectTaskCount +" ssrc:"+ssrc);
                     sendInvitation(rinfo);
                 }
 
@@ -201,7 +215,7 @@ class MIDIStream {
                 handleEnd();
                 break;
             case SYNCHRONIZATION:
-                Log.d("MIDIStream","handle SYNCHRONIZATION");
+//                Log.d("MIDIStream","handle SYNCHRONIZATION");
                 if(isInitiator) {
                     receivedSyncResponse = true;
                 }
@@ -219,87 +233,43 @@ class MIDIStream {
         }
     }
 
-//    public boolean equalBundles(Bundle one, Bundle two) {
-//        if(one.size() != two.size())
-//            return false;
-//
-//        Set<String> setOne = one.keySet();
-//        Object valueOne;
-//        Object valueTwo;
-//
-//        for(String key : setOne) {
-//            valueOne = one.get(key);
-//            valueTwo = two.get(key);
-//            if(valueOne instanceof Bundle && valueTwo instanceof Bundle &&
-//                    !equalBundles((Bundle) valueOne, (Bundle) valueTwo)) {
-//                return false;
-//            }
-//            else if(valueOne == null) {
-//                if(valueTwo != null || !two.containsKey(key))
-//                    return false;
-//            }
-//            else if(!valueOne.equals(valueTwo))
-//                return false;
-//        }
-//
-//        return true;
-//    }
+
 
     private void handleInvitation(MIDIControl control, Bundle rinfo) {
-//        Log.d("MIDIStream","handleInvitation\n - rinfo: "+rinfo.toString());
         if(rinfo1 == null) {
-//            Log.d("MIDIStream", "invite - set rinfo1");
-
             rinfo1 = rinfo;
             this.initiator_token = control.initiator_token;
             this.name = control.name;
             this.ssrc = control.ssrc;
             rinfo1.putString("name", control.name);
-
-//            Log.d("MIDIStream", "Got an invitation from " + control.name + " on channel 1");
-//        } else if(equalBundles(rinfo,rinfo1)) {
-//            Log.d("MIDIStream", "-- got duplicate invite for rinfo1");
-//            return;
         } else if(rinfo.getInt("port") == rinfo1.getInt("port")) {
-//            Log.d("MIDIStream", "-- got duplicate invite for rinfo1 (same port)");
             return;
         } else if(rinfo2 == null) {
-//            Log.d("MIDIStream", "invite - set rinfo2");
             rinfo2 = rinfo;
-//            Log.d("MIDIStream", "Got an invitation from " + control.name + " on channel 2");
             this.isConnected = true;
         } else {
-//            Log.d("MIDIStream","got invite and have both rinfo1 & 2");
             return;
         }
         this.sendInvitationAccepted(rinfo);
     }
 
     private void handleInvitationAccepted(MIDIControl control, Bundle rinfo) {
-
         if (!this.isConnected && this.rinfo1 == null) {
             connectFuture.cancel(true);
             rinfo1 = rinfo;
-//            Log.d("MIDI2Stream", "invite accepted by " + control.name + " on channel 1");
             rinfo1.putString("name",control.name);
             rinfo.putInt("port",rinfo.getInt("port")+1);
             connectTaskCount = 0;
-//            Log.d("MIDI2Stream","shutdown connect");
             connect(rinfo);
         } else if(!this.isConnected && rinfo2 == null) {
             connectFuture.cancel(true);
-//            Log.d("MIDI2Stream","shutdown connect");
             connectTaskCount = 0;
 
             this.isConnected = true;
             this.name = control.name;
             this.ssrc = control.ssrc;
             rinfo2 = rinfo;
-//            Log.d("MIDI2Stream", "Data channel to " + control.name + " established");
-//            Log.d("MIDI2Stream", "name: "+this.name+" ssrc:"+this.ssrc);
             EventBus.getDefault().post(new StreamConnectedEvent(this.initiator_token));
-//            EventBus.getDefault().post(new MIDIConnectionRequestAcceptedEvent());
-
             resetSyncService(2000);
         } else {
             Log.d("MIDI2Stream","unhandled invitation accept");
@@ -307,10 +277,7 @@ class MIDIStream {
     }
 
     private void resetSyncService(int time) {
-
-//        Log.d("MIDI2Stream","resetSyncService "+time);
         if(!primarySyncComplete) {
-//            EventBus.getDefault().post(new MIDISyncronizationStartEvent());
             EventBus.getDefault().post(new SyncronizeStartedEvent());
         }
         if(syncFuture != null) {
@@ -329,8 +296,6 @@ class MIDIStream {
     }
 
     private void handleInvitationRejected(MIDIControl control, Bundle rinfo) {
-//        connectService.shutdownNow();
-//        connectFuture.cancel(true);
         connectFuture.cancel(true);
         EventBus.getDefault().post(new MIDIConnectionRequestRejectedEvent());
     }
@@ -338,8 +303,6 @@ class MIDIStream {
     private void handleEnd() {
         this.isConnected = false;
         // shutdown sync
-//        connectFuture.cancel(true);
-//        connectService.shutdown();
         if(connectFuture != null && !connectFuture.isCancelled()) {
             connectFuture.cancel(true);
         }
@@ -351,7 +314,6 @@ class MIDIStream {
     }
 
     private void sendInvitationAccepted(Bundle rinfo) {
-//        Log.d("MIDI2Stream","sendInvitationAccepted");
         MIDIControl message = new MIDIControl();
 
         message.createInvitationAccepted(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
@@ -374,31 +336,23 @@ class MIDIStream {
 
 
     public void sendMessage(MIDIMessage m) {
-//        Log.d("MIDI2Stream","sendMessage");
         this.lastSentSequenceNr = (this.lastSentSequenceNr + 1) % 0x10000;
         m.sequenceNumber = this.lastSentSequenceNr;
         MIDISession.getInstance().sendUDPMessage(m, rinfo2);
     }
 
     public void sendEnd() {
-//        Log.d("MIDI2Stream","sendEnd");
         MIDIControl message = new MIDIControl();
         message.createEnd(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
         MIDISession.getInstance().sendUDPMessage(message, rinfo1);
-//        connectFuture.cancel(true);
-//        connectService.shutdown();
-//        syncService.shutdown();
         EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
     }
 
     public void sendEnd(Bundle rinfo) {
-//        Log.d("MIDI2Stream","sendEnd");
         MIDIControl message = new MIDIControl();
         message.createEnd(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
         MIDISession.getInstance().sendUDPMessage(message, rinfo);
-//        connectFuture.cancel(true);
-//        connectService.shutdown();
-//        syncService.shutdown();
+
         if(isConnected) {
             EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
         }
@@ -414,10 +368,6 @@ class MIDIStream {
         MIDIControl outboundSyncMessage;
         int count = (inboundSyncMessage != null) ? inboundSyncMessage.count : -1;
         if(count == 3) { count = -1; }
-        Log.d("MIDI2Stream","sendSyncronization "+count);
-
-//        int padding = (inboundSyncMessage != null) ? inboundSyncMessage.sync_padding : 0;
-
         outboundSyncMessage = new MIDIControl();
         outboundSyncMessage.createSyncronization(
                 MIDISession.getInstance().ssrc,
@@ -425,9 +375,6 @@ class MIDIStream {
                 (count != -1) ? inboundSyncMessage.timestamp1 : 0,
                 (count != -1) ? inboundSyncMessage.timestamp2 : 0,
                 (count != -1) ? inboundSyncMessage.timestamp3 : 0);
-
-//        outboundSyncMessage.destination_ip = this.destination_ip;
-//        outboundSyncMessage.destination_port = this.destination_port;
 
         switch(count) {
             case -1: // send count:0
@@ -457,8 +404,7 @@ class MIDIStream {
                 timeDifference = inboundSyncMessage.timestamp3 + timeDifference - now;
 
         }
-        Log.d("MIDI2Stream","about to send sync");
-        if(outboundSyncMessage.count < 4) {
+        if(outboundSyncMessage.count < 3) {
             MIDISession.getInstance().sendUDPMessage(outboundSyncMessage, rinfo2);
             if(!primarySyncComplete && ++syncCount > 3) {
                 primarySyncComplete = true;
