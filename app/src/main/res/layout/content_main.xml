@@ -43,33 +43,20 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:text="background on/off:"
+            android:text="Reconnect on/off:"
             />
         <ToggleButton
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="MIDIService"
-            android:id="@+id/backgroundToggleButton"
+            android:text="Reconnect"
+            android:id="@+id/reconnectToggleButton"
             android:checked="false"
             />
-    </LinearLayout>
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-        <Button
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:text="set name"
-            />
-        <TextView
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="testing"
-            android:id="@+id/bonjourName"
-            />
-
+            android:text="..."
+            android:id="@+id/reconnectStatus"/>
     </LinearLayout>
     <LinearLayout
         android:layout_width="match_parent"

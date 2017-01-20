@@ -39,6 +39,11 @@ import static android.content.Context.WIFI_SERVICE;
 public class MIDISession {
 
     private static MIDISession midiSessionInstance;
+    private static String TAG = "MIDISession";
+    private static String BONJOUR_TYPE = "_apple-midi._udp";
+    private static String BONJOUR_SEPARATOR = ".";
+
+    private static boolean DEBUG = false;
 
     private MIDISession() {
         this.rate = 10000;
@@ -59,12 +64,14 @@ public class MIDISession {
     }
 
     private Boolean isRunning = false;
-    private Context appContext;
+    private Context appContext = null;
     private SparseArray<MIDIStream> streams;
     private SparseArray<MIDIStream> pendingStreams;
 
-//    public String localName = Build.MODEL;
     public String bonjourName = Build.MODEL;
+    public InetAddress bonjourHost = null;
+    public int bonjourPort = 0;
+
     public int port;
     public int ssrc;
     private int readyState;
@@ -77,9 +84,6 @@ public class MIDISession {
 
     private MIDIPort controlChannel;
     private MIDIPort messageChannel;
-
-    private MIDIPort2 controlChannel2;
-    private MIDIPort2 messageChannel2;
 
     private NsdManager mNsdManager;
     private NsdManager.ResolveListener mResolveListener;
@@ -95,12 +99,12 @@ public class MIDISession {
         }
     }
 
-//    public void start(Context context) {
-//        init(context);
-//        start();
-//    }
+    public void start(Context context) {
+        init(context);
+        start();
+    }
 
-    public void start2() {
+    public void start() {
         if(this.appContext == null) {
             return;
         }
@@ -108,16 +112,23 @@ public class MIDISession {
             EventBus.getDefault().register(this);
             registered_eb = true;
         }
-        controlChannel2 = MIDIPort2.newUsing(this.port);
-        controlChannel2.start();
-        messageChannel2 = MIDIPort2.newUsing(this.port+1);
-        messageChannel2.start();
+        try {
+            this.bonjourHost = InetAddress.getByName("127.0.0.1");
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+        this.bonjourHost = getWifiAddress();
+        this.bonjourPort = this.port;
+        controlChannel = MIDIPort.newUsing(this.port);
+        controlChannel.start();
+        messageChannel = MIDIPort.newUsing(this.port+1);
+        messageChannel.start();
 
-        this.streams = new SparseArray<MIDIStream>(2);
-        this.pendingStreams = new SparseArray<MIDIStream>(2);
+        this.streams = new SparseArray<>(2);
+        this.pendingStreams = new SparseArray<>(2);
         try {
             initializeResolveListener();
-            registerService(this.port);
+            registerService();
             isRunning = true;
             EventBus.getDefault().post(new MIDISessionStartEvent());
         } catch (UnknownHostException e) {
@@ -125,44 +136,20 @@ public class MIDISession {
         }
     }
 
-//    public void start() {
-//        if(this.appContext == null) {
-//            return;
-//        }
-//
-//        if(!registered_eb) {
-//            EventBus.getDefault().register(this);
-//            registered_eb = true;
-//        }
-//
-//        this.streams = new SparseArray<MIDIStream>(2);
-//        this.pendingStreams = new SparseArray<MIDIStream>(2);
-//        InetAddress a = getWifiAddress();
-//        controlChannel = new MIDIPort();
-//        controlChannel.bind(a,this.port);
-//        controlChannel.start();
-////        Log.d("MIDISession","created control channel "+controlChannel.getSocket().getLocalSocketAddress().toString());
-//        messageChannel = new MIDIPort();
-//        messageChannel.bind(a,this.port+1);
-//        messageChannel.start();
-////        Log.d("MIDISession","created message channel "+messageChannel.getSocket().getLocalSocketAddress().toString());
-////        Log.d("MIDISession","-message channel "+messageChannel.toString());
-//        try {
-//            initializeResolveListener();
-//            registerService(this.port);
-//            isRunning = true;
-//            EventBus.getDefault().post(new MIDISessionStartEvent());
-//        } catch (UnknownHostException e) {
-//            e.printStackTrace();
-//        }
-//
-//    }
 
-    public void stop2() {
-        if(controlChannel2 != null) {
-            controlChannel2.stop(); }
-        if(messageChannel2 != null) {
-            messageChannel2.stop();
+    public void stop() {
+        for (int i = 0; i < streams.size(); i++) {
+            streams.get(streams.keyAt(i)).sendEnd();
+        }
+        for (int i = 0; i < pendingStreams.size(); i++) {
+            pendingStreams.get(pendingStreams.keyAt(i)).sendEnd();
+        }
+
+        if(controlChannel != null) {
+            controlChannel.stop();
+        }
+        if(messageChannel != null) {
+            messageChannel.stop();
         }
         isRunning = false;
 
@@ -171,20 +158,6 @@ public class MIDISession {
 
     }
 
-//    public void stop() {
-//
-//        for(int i = 0; i < streams.size(); i++) {
-//            streams.get(streams.keyAt(i)).sendEnd();
-//        }
-//        isRunning = false;
-//        // may want to put this on a timer to check if all streams have sent 'END'
-//        controlChannel.stop();
-//        messageChannel.stop();
-//
-//        shutdownNSDListener();
-//
-//        EventBus.getDefault().post(new MIDISessionStopEvent());
-//    }
 
     public void finalize() {
         EventBus.getDefault().unregister(this);
@@ -214,7 +187,7 @@ public class MIDISession {
 //            String key = ((MIDIStream)streams.keyAt(i));
 //            Bundle b = (MIDIStream)streams. .getRinfo1();
             Bundle b = streams.get(streams.keyAt(i)).getRinfo1();
-            if(b.getString("address").equals(rinfo.getString("address")) && b.getInt("port") == rinfo.getInt("port")) {
+            if(b.getString(Consts.RINFO_ADDR).equals(rinfo.getString(Consts.RINFO_ADDR)) && b.getInt(Consts.RINFO_PORT) == rinfo.getInt(Consts.RINFO_PORT)) {
                 return true;
             }
         }
@@ -223,26 +196,24 @@ public class MIDISession {
 
     public void sendUDPMessage(MIDIControl control, Bundle rinfo) {
 //        Log.d("MIDISession","sendUDPMessage:control");
-        if(rinfo.getInt("port") % 2 == 0) {
-//            Log.d("MIDISession","sendUDPMessage control rinfo:"+rinfo.toString());
+        if(rinfo.getInt(Consts.RINFO_PORT) % 2 == 0) {
+            Log.d("MIDISession","sendUDPMessage control 5004 rinfo:"+rinfo.toString());
 //            controlChannel.sendMidi(control, rinfo);
-            controlChannel2.sendMidi(control, rinfo);
+            controlChannel.sendMidi(control, rinfo);
         } else {
-//            Log.d("MIDISession","sendUDPMessage control rinfo:"+rinfo.toString());
+            Log.d("MIDISession","sendUDPMessage control 5005 rinfo:"+rinfo.toString());
 //            messageChannel.sendMidi(control, rinfo);
-            messageChannel2.sendMidi(control, rinfo);
+            messageChannel.sendMidi(control, rinfo);
         }
     }
 
     public void sendUDPMessage(MIDIMessage m, Bundle rinfo) {
 //        Log.d("MIDISession","sendUDPMessage:message");
         if(m != null && rinfo != null) {
-            if (rinfo.getInt("port") % 2 == 0) {
-//            controlChannel.sendMidi(m, rinfo);
-                controlChannel2.sendMidi(m, rinfo);
+            if (rinfo.getInt(Consts.RINFO_PORT) % 2 == 0) {
+                controlChannel.sendMidi(m, rinfo);
             } else {
-//            messageChannel.sendMidi(m, rinfo);
-                messageChannel2.sendMidi(m, rinfo);
+                messageChannel.sendMidi(m, rinfo);
             }
         }
     }
@@ -253,10 +224,10 @@ public class MIDISession {
 
             MIDIMessage message = new MIDIMessage();
             message.createNote(
-                    m.getInt("command",0x09),
-                    m.getInt("channel",0),
-                    m.getInt("note",0),
-                    m.getInt("velocity",0));
+                    m.getInt(Consts.MSG_COMMAND,0x09),
+                    m.getInt(Consts.MSG_CHANNEL,0),
+                    m.getInt(Consts.MSG_NOTE,0),
+                    m.getInt(Consts.MSG_VELOCITY,0));
             message.ssrc = this.ssrc;
 
             for (int i = 0; i < streams.size(); i++) {
@@ -371,6 +342,10 @@ public class MIDISession {
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onStreamDisconnectEvent(StreamDisconnectEvent e) {
+        if(DEBUG) {
+            Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
+        }
+
         streams.delete(ssrc);
         if(e.initiator_token != 0) {
             pendingStreams.delete(e.initiator_token);
@@ -419,7 +394,7 @@ public class MIDISession {
         this.bonjourName = name;
     }
 
-    private void registerService(int port) throws UnknownHostException {
+    private void registerService() throws UnknownHostException {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             // Create the NsdServiceInfo object, and populate it.
             serviceInfo = new NsdServiceInfo();
@@ -428,16 +403,19 @@ public class MIDISession {
             // with other services advertised on the same network.
 
             serviceInfo.setServiceName(this.bonjourName);
-            serviceInfo.setServiceType("_apple-midi._udp");
-            serviceInfo.setPort(5004);
-            serviceInfo.setHost(getWifiAddress());
-            serviceInfo.setPort(port);
+            serviceInfo.setServiceType(BONJOUR_TYPE);
+            serviceInfo.setHost(this.bonjourHost);
+            serviceInfo.setPort(this.bonjourPort);
+
+            if(DEBUG) {
+                Log.d(TAG,"register service: "+serviceInfo.toString());
+            }
             mNsdManager = (NsdManager) appContext.getApplicationContext().getSystemService(Context.NSD_SERVICE);
 
             initializeNSDRegistrationListener();
 
             mNsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, mRegistrationListener);
-            mNsdManager.resolveService(serviceInfo, mResolveListener);
+//            mNsdManager.resolveService(serviceInfo, mResolveListener);
         }
     }
 
@@ -450,7 +428,15 @@ public class MIDISession {
                 // Save the service name.  Android may have changed it in order to
                 // resolve a conflict, so update the name you initially requested
                 // with the name Android actually used.
-                bonjourName = NsdServiceInfo.getServiceName();
+                Log.d(TAG,"Service Registered "+NsdServiceInfo.toString());
+                if(NsdServiceInfo.getServiceName() != null && bonjourName != NsdServiceInfo.getServiceName()) {
+                    bonjourName = NsdServiceInfo.getServiceName();
+                    serviceInfo.setServiceName(bonjourName);
+
+//                    mNsdManager.resolveService(serviceInfo, mResolveListener);
+
+                }
+                mNsdManager.resolveService(serviceInfo, mResolveListener);
                 published_bonjour = true;
                 EventBus.getDefault().post(new MIDISessionNameRegisteredEvent());
             }
@@ -458,9 +444,8 @@ public class MIDISession {
             @Override
             public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {
                 // Registration failed!  Put debugging code here to determine why.
-                System.out.print("onRegistrationFailed ");
+                System.out.print("onRegistrationFailed \n"+serviceInfo.toString()+"\nerror code: "+errorCode);
                 published_bonjour = false;
-
             }
 
             @Override
@@ -484,7 +469,6 @@ public class MIDISession {
     private void initializeResolveListener() {
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             mResolveListener = new NsdManager.ResolveListener() {
-                String TAG = "resolve:";
 
                 @Override
                 public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
@@ -495,6 +479,7 @@ public class MIDISession {
                 @Override
                 public void onServiceResolved(NsdServiceInfo serviceInfo) {
                     Log.e(TAG, "Resolve Succeeded. " + serviceInfo);
+
                 }
             };
         }

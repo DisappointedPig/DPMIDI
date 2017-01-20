@@ -9,17 +9,13 @@ import android.os.Bundle;
 
 import com.disappointedpig.midi.MIDISession;
 
-//import com.disappointedpig.osc.OSCSession;
-//import com.disappointedpig.stagecaller.StageCallerApplication;
-//import com.disappointedpig.stagecaller.events.ConnectionManagerEvent;
-
 public class ConnectionManager {
 
     private static ConnectionManager instance;
 
     private static final String TAG = "ConnectionManager";
     private static final int CM_DEBUG_LEVEL = 0;
-    private static final int DEFAULT_OSC_PORT = 1234;
+    private static final String DEFAULT_BONJOUR_NAME = "testing";
 
     private boolean midiRunning = false, oscRunning = false;
     private HeartbeatManager hbm;
@@ -85,8 +81,8 @@ public class ConnectionManager {
         MIDISession midi = MIDISession.getInstance();
         if(midi != null) {
             midi.init(DPMIDIApplication.getAppContext());
-            midi.setBonjourName("testing");
-            midi.start2();
+            midi.setBonjourName(DEFAULT_BONJOUR_NAME);
+            midi.start();
             midiRunning = true;
             setMIDIState(ConnectionState.RUNNING);
         } else {
@@ -100,8 +96,12 @@ public class ConnectionManager {
         MIDISession midi = MIDISession.getInstance();
         midiRunning = false;
         setMIDIState(ConnectionState.NOT_RUNNING);
+        if(hbm != null) {
+            hbm.stopHeartbeat();
+        }
+
         if(midi != null) {
-            midi.stop2();
+            midi.stop();
         } else {
             midiRunning = false;
             setMIDIState(ConnectionState.FAILED);

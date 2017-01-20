@@ -28,10 +28,10 @@ public class MIDIMessage extends RTPMessage {
     }
 
     public static MIDIMessage newUsing(Bundle m) {
-        return newUsing(   m.getInt("command",0x09),
-                    m.getInt("channel",0),
-                    m.getInt("note",0),
-                    m.getInt("velocity",0));
+        return newUsing(   m.getInt(Consts.MSG_COMMAND,0x09),
+                    m.getInt(Consts.MSG_CHANNEL,0),
+                    m.getInt(Consts.MSG_NOTE,0),
+                    m.getInt(Consts.MSG_VELOCITY,0));
     }
 
 
@@ -61,10 +61,10 @@ public class MIDIMessage extends RTPMessage {
 
     public Bundle toBundle() {
         Bundle midi = new Bundle();
-        midi.putInt("channel_status",this.channel_status);
-        midi.putInt("channel",this.channel);
-        midi.putInt("note", this.note);
-        midi.putInt("velocity", this.velocity);
+        midi.putInt(Consts.MSG_COMMAND,this.channel_status);
+        midi.putInt(Consts.MSG_CHANNEL,this.channel);
+        midi.putInt(Consts.MSG_NOTE, this.note);
+        midi.putInt(Consts.MSG_VELOCITY, this.velocity);
         return midi;
     }
 
@@ -85,7 +85,7 @@ public class MIDIMessage extends RTPMessage {
 
     public byte[] generateBuffer() {
         OutDataBuffer buffer = generatePayload();
-
+// TODO : this doesn't handle channel_status or channel correctly
 //        buffer.write8(0x00);
         buffer.write16(0x0390);
         buffer.write8(note);

@@ -2,6 +2,8 @@ package com.disappointedpig.midi.internal_events;
 
 import android.os.Bundle;
 
+import com.disappointedpig.midi.Consts;
+
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 
@@ -20,8 +22,8 @@ public class PacketEvent {
 
     public Bundle getRInfo() {
         Bundle rinfo = new Bundle();
-        rinfo.putString("address",address.getHostAddress());
-        rinfo.putInt("port",port);
+        rinfo.putString(Consts.RINFO_ADDR,address.getHostAddress());
+        rinfo.putInt(Consts.RINFO_PORT,port);
         return rinfo;
     }
 
