@@ -39,6 +39,7 @@ public class MIDIPort implements Runnable {
     private static final String TAG = "MIDIPort";
     private static final boolean DEBUG = false;
 
+    final Thread thread = new Thread(this);
 
     public static MIDIPort newUsing(int port) {
         return new MIDIPort(port);
@@ -62,6 +63,7 @@ public class MIDIPort implements Runnable {
 
 //            SelectionKey selectKy = channel.register(selector, ops, new UDPBuffer()); // null for an attachment object
 //            SelectionKey selectKy = channel.register(selector, (SelectionKey.OP_READ), new UDPBuffer());
+//            channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
             channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
 
         } catch (IOException e) {
@@ -133,11 +135,14 @@ public class MIDIPort implements Runnable {
 
     public void start() {
         isListening = true;
-        final Thread thread = new Thread(this);
-        // The JVM exits when the only threads running are all daemon threads.
+
+//        final Thread thread = new Thread(this);
+//        // The JVM exits when the only threads running are all daemon threads.
         thread.setDaemon(true);
-        thread.setPriority(Thread.NORM_PRIORITY );
+        thread.setPriority(Thread.NORM_PRIORITY);
         thread.start();
+        Log.d(TAG,"create thread : "+thread.getId());
+
     }
 
     public void stop() {
@@ -147,9 +152,11 @@ public class MIDIPort implements Runnable {
 
     public void finalize() {
         try {
+            outboundQueue.clear();
+            inboundQueue.clear();
             selector.close();
             channel.close();
-
+            thread.interrupt();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -164,16 +171,21 @@ public class MIDIPort implements Runnable {
     public void handleRead(SelectionKey key) {
 //        Log.d("MIDIPort2","handleRead");
 //        final byte[] buffer = new byte[BUFFER_SIZE];
-//        final DatagramPacket packet = new DatagramPacket(buffer, BUFFER_SIZE);
+//        final DatagramPacket packet = new DatagramPacket(buffer, fBUFFER_SIZE);
         DatagramChannel c = (DatagramChannel) key.channel();
-        UDPBuffer buf = (UDPBuffer) key.attachment();
+        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
         try {
 //            channel.socket().receive(packet);
-            UDPBuffer b = new UDPBuffer();
-            b.buffer.clear();
-            b.clientAddress = c.receive(b.buffer);
-            DatagramPacket a = new DatagramPacket(b.buffer.array(),b.buffer.capacity(),b.clientAddress);
-            EventBus.getDefault().post(new PacketEvent(a));
+//            UDPBuffer b = new UDPBuffer();
+            SocketAddress clientAddress = c.receive(buffer);
+//            Log.d("READ","buffer pos "+buffer.position());
+            DatagramPacket packet = new DatagramPacket(buffer.array(),buffer.capacity(),clientAddress);
+//                String output = "";
+//                for(byte a:packet.getData()) {
+//                    output += (String.format("%02x", a) + " ");
+//                }
+//                Log.d("READ"," "+output);
+            EventBus.getDefault().post(new PacketEvent(packet));
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -187,66 +199,29 @@ public class MIDIPort implements Runnable {
 
     }
 
-    private class sendPacketImmediatelyTask extends AsyncTask<Object, Void, Void> {
-        @Override
-        protected Void doInBackground(Object... params) {
-
-            try {
-                sendPacketImmediately((DatagramPacket) params[0]);
-            } catch (Exception ex) {
-                // this is just a demo program, so this is acceptable behavior
-//                Log.d("MIDIPort","SendMidiMessageTask");
-
-                ex.printStackTrace();
-            }
-
-            return null;
-        }
-    }
-
-    public void sendPacketImmediately(DatagramPacket packet) {
-        try {
-//            Log.d("MIDIPort2","sendPacketImmediately");
-            channel.send(ByteBuffer.wrap(packet.getData()), packet.getSocketAddress());
-        } catch (SocketException e) {
-            Log.e("MIDIPort","socket exception - network is unreachable");
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-
-    }
-
     public void handleWrite(SelectionKey key) {
         if(!outboundQueue.isEmpty()) {
-            Log.d("MIDIPort2","handleWrite "+ outboundQueue.size());
+//            Log.d("MIDIPort2","handleWrite "+ outboundQueue.size());
             try {
-//                UDPBuffer buf = (UDPBuffer) key.attachment();
+//                ByteBuffer buffer = (ByteBuffer) key.attachment();
                 DatagramChannel c = (DatagramChannel) key.channel();
-//                c.socket().send(outboundQueue.poll());
-
-//                Log.d("MIDIPort2","start buf size is "+buf.buffer.remaining());
                 DatagramPacket d = outboundQueue.poll();
-//                ByteBuffer byteBuffer = ByteBuffer.allocate(d.getData().length);
+
                 byte[] r = d.getData();
-                String output = "";
-                for(byte a:r) {
-                    output += (String.format("%02x", a) + " ");
-                }
-                Log.d("MIDIPort2","output "+output);
-//                buf.buffer.put(r);
-//                Log.d("MIDIPort2","data "+d.getData());
-                Log.d("MIDIPort2","socketaddress "+d.getSocketAddress());
-
-                int bytesSent = c.send(ByteBuffer.wrap(r),d.getSocketAddress());
-//                if (bytesSent != 0) { // Buffer completely written?
-//                    // No longer interested in writes
-//                    key.interestOps(SelectionKey.OP_READ);
+//                String output = "";
+//                for(byte a:r) {
+//                    output += (String.format("%02x", a) + " ");
 //                }
-                Log.d("MIDIPort2","bytesent "+bytesSent);
+//                Log.d("PACK"," "+output);
+//                buffer = ByteBuffer.wrap(r);
+//                output = "";
+//                for(byte a:buffer.array()) {
+//                    output += (String.format("%02x", a) + " ");
+//                }
+//                Log.d("WRIT"," "+output);
+//                c.send(buffer,d.getSocketAddress());
 
-//                channel.socket().send();
-//                key.interestOps(SelectionKey.OP_READ);
+                c.send(ByteBuffer.wrap(r),d.getSocketAddress());
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -260,55 +235,30 @@ public class MIDIPort implements Runnable {
             Log.d(TAG,"not listening...");
             return;
         }
-        try {
-            byte[] r = control.generateBuffer();
-            InetAddress destination_address = InetAddress.getByName(rinfo.getString("address"));
-            int destination_port = rinfo.getInt("port");
-            if(DEBUG) {
-                Log.d(TAG, "control "+this.port+" -> " + destination_address + ":" + destination_port);
-            }
-            DatagramPacket response = new DatagramPacket(r, r.length, destination_address, destination_port);
-
-            outboundQueue.add(response);
-            selector.wakeup();
-//            new sendPacketImmediatelyTask().execute(response);
-//            Log.d("MIDIPort2","queued control response");
-
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        }
-
+        addToOutboundQueue(control.generateBuffer(),rinfo);
     }
 
     public void sendMidi(MIDIMessage message, Bundle rinfo) {
 //        Log.d("MIDIPort","sendMidi(message)");
         if (!isListening) {
+            Log.d(TAG,"not listening...");
             return;
         }
+        addToOutboundQueue(message.generateBuffer(),rinfo);
+    }
+
+    public void addToOutboundQueue(byte[] data, Bundle rinfo) {
         try {
-            byte[] r = message.generateBuffer();
-            InetAddress destination_address = InetAddress.getByName(rinfo.getString("address"));
-            int destination_port = rinfo.getInt("port");
-            DatagramPacket response = new DatagramPacket(r, r.length, destination_address, destination_port);
-//            outboundQueue.add(response);
-//            channel.socket().send(response); // fails with IBME
-//            new sendPacketImmediatelyTask().execute(response);
-            if(DEBUG) {
-                Log.d(TAG, "message "+this.port+" -> " + destination_address + ":" + destination_port);
-            }
-            outboundQueue.add(response);
+            outboundQueue.add(new DatagramPacket(data, data.length, InetAddress.getByName(rinfo.getString(Consts.RINFO_ADDR)), rinfo.getInt(Consts.RINFO_PORT)));
             selector.wakeup();
         } catch (UnknownHostException e) {
             e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
         }
     }
 
-
-    static class UDPBuffer {
-        public SocketAddress clientAddress;
-        public ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-    }
+//    class UDPBuffer {
+//        public SocketAddress clientAddress;
+//        public ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+//    }
 
 }

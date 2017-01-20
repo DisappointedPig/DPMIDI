@@ -160,8 +160,8 @@ public class MIDISession {
 
 
     public void finalize() {
+        stop();
         EventBus.getDefault().unregister(this);
-
         try {
             super.finalize();
         } catch (Throwable throwable) {
@@ -345,10 +345,22 @@ public class MIDISession {
         if(DEBUG) {
             Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
         }
-
-        streams.delete(ssrc);
+        MIDIStream a = streams.get(e.stream_ssrc,null);
+        if(a == null) {
+            Log.d(TAG,"can't find stream with ssrc "+e.stream_ssrc);
+        } else {
+            a.shutdown();
+            streams.delete(e.stream_ssrc);
+        }
         if(e.initiator_token != 0) {
-            pendingStreams.delete(e.initiator_token);
+            MIDIStream p = pendingStreams.get(e.initiator_token,null);
+            if(p == null) {
+                Log.d(TAG,"can't find pending stream with IT "+e.initiator_token);
+            } else {
+                p.shutdown();
+                pendingStreams.delete(e.initiator_token);
+            }
+
         }
     }
 
@@ -437,6 +449,7 @@ public class MIDISession {
 
                 }
                 mNsdManager.resolveService(serviceInfo, mResolveListener);
+
                 published_bonjour = true;
                 EventBus.getDefault().post(new MIDISessionNameRegisteredEvent());
             }
@@ -487,6 +500,7 @@ public class MIDISession {
 
     private void shutdownNSDListener() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+
             if(mNsdManager != null) {
                 mNsdManager.unregisterService(mRegistrationListener);
             }

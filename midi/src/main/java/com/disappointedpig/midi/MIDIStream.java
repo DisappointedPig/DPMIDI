@@ -75,20 +75,22 @@ class MIDIStream {
         connectService = Executors.newSingleThreadScheduledExecutor();
         syncService = Executors.newSingleThreadScheduledExecutor();
         checkConnectionService = Executors.newSingleThreadScheduledExecutor();
-
         connectFuture = null;
         primarySyncComplete = false;
     }
 
     public void finalize() {
-        if(connectFuture != null) {
-            connectFuture.cancel(true);
+        cancelConnectFuture();
+        cancelSyncFuture();
+        cancelCheckConnectionFuture();
+        if(!connectService.isShutdown()) {
+            connectService.shutdownNow();
         }
-        if(syncFuture != null) {
-            syncFuture.cancel(true);
+        if(!syncService.isShutdown()) {
+            syncService.shutdownNow();
         }
-        if(checkConnectionFuture != null) {
-            checkConnectionFuture.cancel(true);
+        if(!checkConnectionService.isShutdown()) {
+            checkConnectionService.shutdownNow();
         }
         try {
             super.finalize();
@@ -199,7 +201,7 @@ class MIDIStream {
     }
 
 
-        void connect(final Bundle rinfo) {
+    void connect(final Bundle rinfo) {
 //        Log.d("MIDIStream","connect "+rinfo.getString(RINFO_ADDR)+":"+rinfo.getInt(RINFO_PORT));
         if(isConnected) {
             // already connected, should not reconnect with same stream
@@ -224,6 +226,45 @@ class MIDIStream {
                 connectFuture.cancel(false);
             }
         }, 1, MINUTES);
+    }
+
+    private void cancelConnectFuture() {
+        if(connectFuture != null && !connectFuture.isCancelled()) {
+            connectFuture.cancel(true);
+        }
+    }
+
+    private void cancelSyncFuture() {
+        if(syncFuture != null && !syncFuture.isCancelled()) {
+            syncFuture.cancel(true);
+        }
+    }
+
+    private void cancelCheckConnectionFuture() {
+        if(checkConnectionFuture != null && !checkConnectionFuture.isCancelled()) {
+            checkConnectionFuture.cancel(true);
+        }
+    }
+
+
+    public void disconnect() {
+        cancelConnectFuture();
+        cancelSyncFuture();
+        cancelCheckConnectionFuture();
+    }
+
+    public void shutdown() {
+        disconnect();
+        if(!connectService.isShutdown()) {
+            connectService.shutdown();
+        }
+        if(!syncService.isShutdown()) {
+            syncService.shutdown();
+        }
+        if(!checkConnectionService.isShutdown()) {
+            checkConnectionService.shutdown();
+        }
+
     }
 
     public Bundle getRinfo1() {
@@ -263,10 +304,6 @@ class MIDIStream {
             case END:
 //                Log.d("MIDIStream","handle END");
                 handleEnd();
-                if(checkConnectionFuture != null) {
-
-                    checkConnectionFuture.cancel(true);
-                }
                 break;
             case SYNCHRONIZATION:
 //                Log.d("MIDIStream","handle SYNCHRONIZATION");
@@ -304,6 +341,7 @@ class MIDIStream {
         } else {
             return;
         }
+        // TODO : check if connection is allowed...
         this.sendInvitationAccepted(rinfo);
     }
 
@@ -342,9 +380,9 @@ class MIDIStream {
             @Override
             public void run() {
                 Log.d(TAG,"huh?");
-                connectFuture.cancel(false);
+                checkConnectionFuture.cancel(false);
             }
-        }, 1, MINUTES);
+        }, 2, MINUTES);
 
     }
 
@@ -362,7 +400,7 @@ class MIDIStream {
         syncService.schedule(new Runnable() {
             @Override
             public void run() {
-                connectFuture.cancel(false);
+                syncFuture.cancel(false);
             }
         }, 2, MINUTES);
     }
@@ -380,6 +418,9 @@ class MIDIStream {
         }
         if(syncFuture != null && !syncFuture.isCancelled()) {
             syncFuture.cancel(true);
+        }
+        if(checkConnectionFuture != null && !checkConnectionFuture.isCancelled()) {
+            checkConnectionFuture.cancel(true);
         }
         EventBus.getDefault().post(new MIDIConnectionEndEvent());
         EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
