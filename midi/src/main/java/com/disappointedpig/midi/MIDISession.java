@@ -170,38 +170,74 @@ public class MIDISession {
     }
 
     public void connect(Bundle rinfo) {
-
-        if(isRunning && !isAlreadyConnected(rinfo)) {
-//            Log.d("midisession","running and not connected");
-            MIDIStream stream = new MIDIStream();
-            stream.connect(rinfo);
-            pendingStreams.put(stream.initiator_token, stream);
+        if(isRunning) {
+            if(!isAlreadyConnected(rinfo)) {
+                Log.d(TAG,"opening connection to "+rinfo);
+                MIDIStream stream = new MIDIStream();
+                stream.connect(rinfo);
+                pendingStreams.put(stream.initiator_token, stream);
+            } else {
+                Log.e(TAG,"already have open session to "+rinfo.toString());
+            }
         } else {
-//            Log.d("midisession","not running or already connected");
+            Log.e(TAG,"MIDI not running");
         }
+
+//        if(isRunning && !isAlreadyConnected(rinfo)) {
+//            MIDIStream stream = new MIDIStream();
+//            stream.connect(rinfo);
+//            pendingStreams.put(stream.initiator_token, stream);
+//        }
     }
 
     private Boolean isAlreadyConnected(Bundle rinfo) {
-        for (int i = 0; i < streams.size(); i++) {
-//            streams.get(streams.keyAt(i)).sendMessage(message);
-//            String key = ((MIDIStream)streams.keyAt(i));
-//            Bundle b = (MIDIStream)streams. .getRinfo1();
-            Bundle b = streams.get(streams.keyAt(i)).getRinfo1();
-            if(b.getString(Consts.RINFO_ADDR).equals(rinfo.getString(Consts.RINFO_ADDR)) && b.getInt(Consts.RINFO_PORT) == rinfo.getInt(Consts.RINFO_PORT)) {
-                return true;
+        Log.d(TAG,"isAlreadyConnected "+pendingStreams.size()+" "+streams.size());
+        boolean existsInPendingStreams = false;
+        boolean existsInStreams = false;
+        Log.e(TAG,"checking pendingStreams...");
+        for (int i = 0; i < pendingStreams.size(); i++) {
+            if(pendingStreams.get(pendingStreams.keyAt(i)).connectionMatch(rinfo)) {
+                existsInPendingStreams = true;
+                break;
             }
         }
-        return false;
+
+        if(!existsInPendingStreams) {
+            for (int i = 0; i < streams.size(); i++) {
+                MIDIStream s = streams.get(streams.keyAt(i));
+                if(s == null) {
+                    Log.e(TAG,"error in isAlreadyConnected "+i+" rinfo "+rinfo.toString());
+                } else {
+                    Log.e(TAG,"checking streams...");
+                    if(streams.get(streams.keyAt(i)).connectionMatch(rinfo)) {
+                        existsInStreams = true;
+                    }
+                }
+            }
+        }
+        Log.d(TAG,"existsInPendingStreams:"+(existsInPendingStreams ? "YES" : "NO"));
+        Log.d(TAG,"existsInStreams:"+(existsInStreams ? "YES" : "NO"));
+        return (existsInPendingStreams || existsInStreams);
+//        for (int i = 0; i < streams.size(); i++) {
+////            streams.get(streams.keyAt(i)).sendMessage(message);
+////            String key = ((MIDIStream)streams.keyAt(i));
+////            Bundle b = (MIDIStream)streams. .getRinfo1();
+//            Bundle b = streams.get(streams.keyAt(i)).getRinfo1();
+//            if(b.getString(Consts.RINFO_ADDR).equals(rinfo.getString(Consts.RINFO_ADDR)) && b.getInt(Consts.RINFO_PORT) == rinfo.getInt(Consts.RINFO_PORT)) {
+//                return true;
+//            }
+//        }
+//        return false;
     }
 
     public void sendUDPMessage(MIDIControl control, Bundle rinfo) {
 //        Log.d("MIDISession","sendUDPMessage:control");
         if(rinfo.getInt(Consts.RINFO_PORT) % 2 == 0) {
-            Log.d("MIDISession","sendUDPMessage control 5004 rinfo:"+rinfo.toString());
+//            Log.d("MIDISession", "sendUDPMessage control 5004 rinfo:" + rinfo.toString());
 //            controlChannel.sendMidi(control, rinfo);
             controlChannel.sendMidi(control, rinfo);
         } else {
-            Log.d("MIDISession","sendUDPMessage control 5005 rinfo:"+rinfo.toString());
+//            Log.d("MIDISession","sendUDPMessage control 5005 rinfo:"+rinfo.toString());
 //            messageChannel.sendMidi(control, rinfo);
             messageChannel.sendMidi(control, rinfo);
         }
@@ -250,6 +286,7 @@ public class MIDISession {
         }
     }
 
+    // TODO : figure out what this is supposed to return... becuase I don't think this is right
     // getNow returns a unix (long)timestamp
     public long getNow() {
         long hrtime = System.nanoTime()-this.startTimeHR;
@@ -308,7 +345,7 @@ public class MIDISession {
                 if(applecontrol.initiator_token != 0) {
                     MIDIStream pending = pendingStreams.get(applecontrol.initiator_token);
                     if (pending != null) {
-                        Log.d("MIDISession", " - got pending stream by token");
+//                        Log.d("MIDISession", " - got pending stream by token");
                         pending.handleControlMessage(applecontrol, e.getRInfo());
                         return;
                     }
@@ -342,9 +379,9 @@ public class MIDISession {
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onStreamDisconnectEvent(StreamDisconnectEvent e) {
-        if(DEBUG) {
-            Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
-        }
+//        if(DEBUG) {
+//            Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
+//        }
         MIDIStream a = streams.get(e.stream_ssrc,null);
         if(a == null) {
             Log.d(TAG,"can't find stream with ssrc "+e.stream_ssrc);
@@ -360,7 +397,6 @@ public class MIDISession {
                 p.shutdown();
                 pendingStreams.delete(e.initiator_token);
             }
-
         }
     }
 
@@ -419,9 +455,9 @@ public class MIDISession {
             serviceInfo.setHost(this.bonjourHost);
             serviceInfo.setPort(this.bonjourPort);
 
-            if(DEBUG) {
-                Log.d(TAG,"register service: "+serviceInfo.toString());
-            }
+//            if(DEBUG) {
+//                Log.d(TAG,"register service: "+serviceInfo.toString());
+//            }
             mNsdManager = (NsdManager) appContext.getApplicationContext().getSystemService(Context.NSD_SERVICE);
 
             initializeNSDRegistrationListener();
@@ -448,7 +484,7 @@ public class MIDISession {
 //                    mNsdManager.resolveService(serviceInfo, mResolveListener);
 
                 }
-                mNsdManager.resolveService(serviceInfo, mResolveListener);
+//                mNsdManager.resolveService(serviceInfo, mResolveListener);
 
                 published_bonjour = true;
                 EventBus.getDefault().post(new MIDISessionNameRegisteredEvent());
@@ -513,4 +549,8 @@ public class MIDISession {
         return BuildConfig.VERSION_NAME;
     }
 
+    // TODO : make this actually work...
+    boolean isHostConnectionAllowed(Bundle rinfo) {
+        return true;
+    }
 }

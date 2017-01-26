@@ -26,6 +26,7 @@ import com.disappointedpig.midi.events.MIDIConnectionRequestAcceptedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestReceivedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestRejectedEvent;
 import com.disappointedpig.midi.events.MIDIReceivedEvent;
+import com.disappointedpig.midi.events.MIDISessionNameRegisteredEvent;
 import com.disappointedpig.midi.events.MIDISessionStartEvent;
 import com.disappointedpig.midi.events.MIDISessionStopEvent;
 import com.disappointedpig.midi.events.MIDISyncronizationCompleteEvent;
@@ -76,10 +77,10 @@ public class MainActivity extends AppCompatActivity {
 
         EventBus.getDefault().register(this);
 
-        sharedpreferences = getSharedPreferences("DPMIDIPreferences", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedpreferences.edit();
-        editor.putBoolean("MIDIState", false);
-        editor.commit();
+//        sharedpreferences = getSharedPreferences("DPMIDIPreferences", Context.MODE_PRIVATE);
+//        SharedPreferences.Editor editor = sharedpreferences.edit();
+//        editor.putBoolean("MIDIState", false);
+//        editor.commit();
 
 //        EventBus.getDefault().register(this);
         startMIDIService();
@@ -143,18 +144,14 @@ public class MainActivity extends AppCompatActivity {
         midiServiceToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
-//                    updateList("midi preference on");
-//                    startupMIDI();
-                    SharedPreferences.Editor editor = sharedpreferences.edit();
-                    editor.putBoolean("MIDIState", true);
-                    editor.commit();
+                    Intent intent = new Intent(MainActivity.this, MIDIService.class);
+                    intent.setAction(Constants.ACTION.START_ACTION);
+                    startService(intent);
 
                 } else {
-//                    updateList("midi preference off");
-//                    shutdownMIDI();
-                    SharedPreferences.Editor editor = sharedpreferences.edit();
-                    editor.putBoolean("MIDIState", false);
-                    editor.commit();
+                    Intent intent = new Intent(MainActivity.this, MIDIService.class);
+                    intent.setAction(Constants.ACTION.STOP_ACTION);
+                    startService(intent);
                 }
             }
         });
@@ -239,24 +236,36 @@ public class MainActivity extends AppCompatActivity {
 //    }
 
     public void startMIDIService() {
-        Intent cmsIntent = new Intent(this,MIDIService.class);
-        startService(cmsIntent);
+//        Intent cmsIntent = new Intent(this,MIDIService.class);
+//        startService(cmsIntent);
 
-        midiServiceConnection = new ServiceConnection() {
-            public void onServiceConnected(ComponentName className, IBinder service) {
-                // Called when the connection is made.
-                midiServiceRef = ((MIDIService.MIDIServiceBinder) service).getService();
 
-            }
+        Intent startIntent = new Intent(MainActivity.this, MIDIService.class);
+        startIntent.setAction(Constants.ACTION.STARTFOREGROUND_ACTION);
+        startService(startIntent);
 
-            public void onServiceDisconnected( ComponentName className) {
-                // Received when the service unexpectedly disconnects.
-                midiServiceRef = null;
-            }
-        };
+//        midiServiceConnection = new ServiceConnection() {
+//            public void onServiceConnected(ComponentName className, IBinder service) {
+//                // Called when the connection is made.
+//                midiServiceRef = ((MIDIService.MIDIServiceBinder) service).getService();
+//
+//            }
+//
+//            public void onServiceDisconnected( ComponentName className) {
+//                // Received when the service unexpectedly disconnects.
+//                midiServiceRef = null;
+//            }
+//        };
+//
+//        Intent bindintent = new Intent(this,MIDIService.class);
+//        bindService(bindintent, midiServiceConnection, Context.BIND_AUTO_CREATE);
 
-        Intent bindintent = new Intent(this,MIDIService.class);
-        bindService(bindintent, midiServiceConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    public void stopMIDIService() {
+        Intent startIntent = new Intent(MainActivity.this, MIDIService.class);
+        startIntent.setAction(Constants.ACTION.STOPFOREGROUND_ACTION);
+        startService(startIntent);
 
     }
 
@@ -277,18 +286,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDIConnectionRequestReceivedEvent(MIDIConnectionRequestReceivedEvent event) {
-        Log.d("MainActivity","MIDIConnectionRequestReceivedEvent");
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDIConnectionRequestAcceptedEvent(MIDIConnectionRequestAcceptedEvent event) {
-        Log.d("MainActivity","MIDIConnectionRequestAcceptedEvent");
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDIConnectionRequestRejectedEvent(MIDIConnectionRequestRejectedEvent event) {
-        Log.d("MainActivity","MIDIConnectionRequestRejectedEvent");
+    public void onMIDIConnectionEndEvent(MIDIConnectionEndEvent event) {
+        Log.d("MainActivity","MIDIConnectionEndEvent");
+        midiConnectionStatusTextView.setText("connection end");
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -299,21 +299,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDIConnectionEndEvent(MIDIConnectionEndEvent event) {
-        Log.d("MainActivity","MIDIConnectionEndEvent");
-        midiConnectionStatusTextView.setText("connection end");
+    public void onMIDIConnectionRequestAcceptedEvent(MIDIConnectionRequestAcceptedEvent event) {
+        Log.d("MainActivity","MIDIConnectionRequestAcceptedEvent");
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDISyncronizationStartEvent(MIDISyncronizationStartEvent event) {
-        Log.d("MainActivity","MIDISyncronizationStartEvent");
-        midiConnectionStatusTextView.setText("sync start");
+    public void onMIDIConnectionRequestReceivedEvent(MIDIConnectionRequestReceivedEvent event) {
+        Log.d("MainActivity","MIDIConnectionRequestReceivedEvent");
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDISyncronizationCompleteEvent(MIDISyncronizationCompleteEvent event) {
-        Log.d("MainActivity","MIDISyncronizationCompleteEvent");
-        midiConnectionStatusTextView.setText("sync end");
+    public void onMIDIConnectionRequestRejectedEvent(MIDIConnectionRequestRejectedEvent event) {
+        Log.d("MainActivity","MIDIConnectionRequestRejectedEvent");
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMIDIReceivedEvent(MIDIReceivedEvent event) {
+        Log.d("MainActivity","MIDIReceivedEvent");
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMIDISessionNameRegisteredEvent(MIDISessionNameRegisteredEvent event) {
+        Log.d("MainActivity","MIDISessionNameRegisteredEvent");
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -329,8 +336,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMIDIReceivedEvent(MIDIReceivedEvent event) {
-        Log.d("MainActivity","MIDIReceivedEvent");
+    public void onMIDISyncronizationCompleteEvent(MIDISyncronizationCompleteEvent event) {
+        Log.d("MainActivity","MIDISyncronizationCompleteEvent");
+        midiConnectionStatusTextView.setText("sync end");
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMIDISyncronizationStartEvent(MIDISyncronizationStartEvent event) {
+        Log.d("MainActivity","MIDISyncronizationStartEvent");
+        midiConnectionStatusTextView.setText("sync start");
     }
 }
 

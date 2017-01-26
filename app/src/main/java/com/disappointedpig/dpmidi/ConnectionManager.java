@@ -49,9 +49,7 @@ public class ConnectionManager {
         wifiLock = ((WifiManager) DPMIDIApplication.getAppContext().getSystemService(Context.WIFI_SERVICE)).createWifiLock(WifiManager.WIFI_MODE_FULL, "dpmidiWIFILock");
     }
 
-    public ConnectionState getMIDIState() {
-        return MIDIState;
-    }
+    public ConnectionState getMIDIState() { return MIDIState; }
 
     public ConnectionState getOSCState() {
         return OSCState;
