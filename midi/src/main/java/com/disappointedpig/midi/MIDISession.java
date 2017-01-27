@@ -182,13 +182,34 @@ public class MIDISession {
         } else {
             Log.e(TAG,"MIDI not running");
         }
-
-//        if(isRunning && !isAlreadyConnected(rinfo)) {
-//            MIDIStream stream = new MIDIStream();
-//            stream.connect(rinfo);
-//            pendingStreams.put(stream.initiator_token, stream);
-//        }
     }
+
+    public void disconnect(Bundle rinfo) {
+        MIDIStream s = getStream(rinfo);
+        if(s != null) {
+            disconnect(s.ssrc);
+        }
+    }
+
+    public void disconnect(int remote_ssrc) {
+        if(remote_ssrc != 0) {
+            streams.get(remote_ssrc).disconnect();
+            streams.get(remote_ssrc).shutdown();
+            streams.remove(remote_ssrc);
+        }
+
+    }
+
+    private MIDIStream getStream(Bundle rinfo) {
+        for (int i = 0; i < pendingStreams.size(); i++) {
+            MIDIStream s = streams.get(pendingStreams.keyAt(i));
+            if(s.connectionMatch(rinfo)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
 
     private Boolean isAlreadyConnected(Bundle rinfo) {
         Log.d(TAG,"isAlreadyConnected "+pendingStreams.size()+" "+streams.size());

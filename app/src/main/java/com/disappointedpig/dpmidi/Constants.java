@@ -2,15 +2,23 @@ package com.disappointedpig.dpmidi;
 
 public class Constants {
     public interface ACTION {
-        public static String MAIN_ACTION = "com.disappointedpig.dpmidi.action.main";
-        public static String PREV_ACTION = "com.disappointedpig.dpmidi.action.prev";
-        public static String START_ACTION = "com.disappointedpig.dpmidi.action.play";
-        public static String STOP_ACTION = "com.disappointedpig.dpmidi.action.next";
-        public static String STARTFOREGROUND_ACTION = "com.disappointedpig.dpmidi.action.startforeground";
-        public static String STOPFOREGROUND_ACTION = "com.disappointedpig.dpmidi.action.stopforeground";
+        public static String MAIN_ACTION = "com.disappointedpig.stagecaller.action.main";
+
+        public static String STARTCMGR_ACTION = "com.disappointedpig.stagecaller.action.startcmgr";
+        public static String STOPCMGR_ACTION = "com.disappointedpig.stagecaller.action.stopcmgr";
+
+        public static String START_MIDI_ACTION = "com.disappointedpig.stagecaller.action.startmidi";
+        public static String STOP_MIDI_ACTION = "com.disappointedpig.stagecaller.action.stopmidi";
+        public static String START_OSC_ACTION = "com.disappointedpig.stagecaller.action.startosc";
+        public static String STOP_OSC_ACTION = "com.disappointedpig.stagecaller.action.stoposc";
     }
 
+    public interface PREF {
+        public static final String SHAREDPREFERENCES_KEY = "SCPreferences";
+        public static final String MIDI_STATE_PREF = "com.disappointedpig.stagecaller.pref.MIDIState";
+        public static final String BACKGROUND_STATE_PREF = "com.disappointedpig.stagecaller.pref.BackgroundState";
+    }
     public interface NOTIFICATION_ID {
-        public static int MIDI_SERVICE = 101;
+        public static int CONNECTIONMGR = 1120;
     }
 }

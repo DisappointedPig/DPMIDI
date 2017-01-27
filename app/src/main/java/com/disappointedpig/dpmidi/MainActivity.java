@@ -48,15 +48,12 @@ public class MainActivity extends AppCompatActivity {
         int position;
     }
 
-    private MIDIService midiServiceRef;
-    private ServiceConnection midiServiceConnection;
     SharedPreferences sharedpreferences;
 
-    ToggleButton midiServiceToggle;
+    ToggleButton midiSessionToggle, cmServiceToggle, backgroundToggleButton;
     TextView midiStatusTextView;
 
-    Button midiInviteButton;
-    TextView midiInviteStatusTextView;
+    Button midiInviteButton, midiEndConnectionButton;
 
     TextView midiConnectionStatusTextView;
 
@@ -77,58 +74,13 @@ public class MainActivity extends AppCompatActivity {
 
         EventBus.getDefault().register(this);
 
-//        sharedpreferences = getSharedPreferences("DPMIDIPreferences", Context.MODE_PRIVATE);
-//        SharedPreferences.Editor editor = sharedpreferences.edit();
-//        editor.putBoolean("MIDIState", false);
-//        editor.commit();
-
-//        EventBus.getDefault().register(this);
-        startMIDIService();
-
-//        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-//        fab.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View view) {
-//                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-//                        .setAction("Action", null).show();
-//            }
-//        });
-
-//        adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, activityList);
-
-//        adapter = new ArrayAdapter<MIDIDebugEvent>(this,R.layout.twolinelistrow,activityList) {
-//            @Override
-//            public View getView(int position, View convertView, ViewGroup parent) {
-////                ViewHolder holder;
-//                if (convertView == null) {
-//                    // You should fetch the LayoutInflater once in your constructor
-//                    LayoutInflater inflater = (LayoutInflater) getApplicationContext().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-//                    convertView = inflater.inflate(R.layout.twolinelistrow, null);
-//                }
-//                    // Initialize ViewHolder here
-////                } else {
-////                    holder = (ViewHolder) convertView.getTag();
-////                }
-////        File file = filesArrayList.get(position);
-//                MIDIDebugEvent d=activityList.get(position);
-////                holder.text1.setText(d.module);
-////                holder.text2.setText(d.message);
-////                Log.d("ma","module: "+d.module+" message: "+d.message);
-//                TextView v = (TextView) convertView.findViewById(R.id.text1);
-//                v.setText(d.module);
-//                v = (TextView) convertView.findViewById(R.id.text2);
-//                v.setText(d.message);
-//                return convertView;
-//            }
-//        };
-//        ListView listView = (ListView) findViewById(R.id.activity_listview);
-//        listView.setAdapter(adapter);
+        cmServiceToggle = (ToggleButton) findViewById(R.id.cmServiceToggleButton);
 
         midiInviteButton = (Button) findViewById(R.id.midiInviteButton);
-        midiInviteStatusTextView = (TextView) findViewById(R.id.midiOutInviteStatus);
+        midiEndConnectionButton = (Button) findViewById(R.id.midiEndConnectionButton);
+        backgroundToggleButton = (ToggleButton) findViewById(R.id.backgroundToggleButton);
 
-
-        midiServiceToggle = (ToggleButton) findViewById(R.id.midiServiceToggleButton);
+        midiSessionToggle = (ToggleButton) findViewById(R.id.midiSessionToggleButton);
         midiStatusTextView = (TextView) findViewById(R.id.midiStatus);
 
         midiConnectionStatusTextView = (TextView) findViewById(R.id.midiConnectionStatus);
@@ -141,21 +93,49 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        midiServiceToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+        cmServiceToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
-                    Intent intent = new Intent(MainActivity.this, MIDIService.class);
-                    intent.setAction(Constants.ACTION.START_ACTION);
-                    startService(intent);
-
+                    Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
+                    startIntent.setAction(Constants.ACTION.STARTCMGR_ACTION);
+                    startService(startIntent);
                 } else {
-                    Intent intent = new Intent(MainActivity.this, MIDIService.class);
-                    intent.setAction(Constants.ACTION.STOP_ACTION);
-                    startService(intent);
+                    Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
+                    startIntent.setAction(Constants.ACTION.STOPCMGR_ACTION);
+                    startService(startIntent);
                 }
             }
         });
 
+        backgroundToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences("SCPreferences", Context.MODE_PRIVATE);
+
+                if (isChecked) {
+                    ((DPMIDIApplication) getApplicationContext()).setRunInBackground(true);
+//                    sharedpreferences.edit().putBoolean(Constants.PREF.MIDI_STATE_PREF, true).apply();
+//                    sharedpreferences.edit().putBoolean(Constants.PREF.MIDI_STATE_PREF, true).apply();
+                } else {
+                    ((DPMIDIApplication) getApplicationContext()).setRunInBackground(false);
+//                    sharedpreferences.edit().putBoolean(Constants.PREF.MIDI_STATE_PREF, false).apply();
+//                    sharedpreferences.edit().putBoolean(Constants.PREF.MIDI_STATE_PREF, false).commit();
+                }
+            }
+        });
+
+        midiSessionToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
+                    startIntent.setAction(Constants.ACTION.START_MIDI_ACTION);
+                    startService(startIntent);
+                } else {
+                    Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
+                    startIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
+                    startService(startIntent);
+                }
+            }
+        });
 
         midiInviteButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -167,7 +147,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-
+        midiEndConnectionButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Bundle rinfo = new Bundle();
+                rinfo.putString("address","172.16.1.23");
+                rinfo.putInt("port",5004);
+                MIDISession.getInstance().disconnect(rinfo);
+            }
+        });
 
         Button testMIDIButton = (Button) findViewById(R.id.testMIDIButton);
         testMIDIButton.setOnClickListener(new View.OnClickListener() {
@@ -235,39 +223,6 @@ public class MainActivity extends AppCompatActivity {
 //        MIDI2Session.getInstance().stop();
 //    }
 
-    public void startMIDIService() {
-//        Intent cmsIntent = new Intent(this,MIDIService.class);
-//        startService(cmsIntent);
-
-
-        Intent startIntent = new Intent(MainActivity.this, MIDIService.class);
-        startIntent.setAction(Constants.ACTION.STARTFOREGROUND_ACTION);
-        startService(startIntent);
-
-//        midiServiceConnection = new ServiceConnection() {
-//            public void onServiceConnected(ComponentName className, IBinder service) {
-//                // Called when the connection is made.
-//                midiServiceRef = ((MIDIService.MIDIServiceBinder) service).getService();
-//
-//            }
-//
-//            public void onServiceDisconnected( ComponentName className) {
-//                // Received when the service unexpectedly disconnects.
-//                midiServiceRef = null;
-//            }
-//        };
-//
-//        Intent bindintent = new Intent(this,MIDIService.class);
-//        bindService(bindintent, midiServiceConnection, Context.BIND_AUTO_CREATE);
-
-    }
-
-    public void stopMIDIService() {
-        Intent startIntent = new Intent(MainActivity.this, MIDIService.class);
-        startIntent.setAction(Constants.ACTION.STOPFOREGROUND_ACTION);
-        startService(startIntent);
-
-    }
 
     public void sendTestMIDI() {
         Log.d("Main","sendTestMidi 41,127");
@@ -313,7 +268,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d("MainActivity","MIDIConnectionRequestRejectedEvent");
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
+    @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onMIDIReceivedEvent(MIDIReceivedEvent event) {
         Log.d("MainActivity","MIDIReceivedEvent");
     }

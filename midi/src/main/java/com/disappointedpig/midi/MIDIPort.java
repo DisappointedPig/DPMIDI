@@ -56,7 +56,8 @@ class MIDIPort implements Runnable {
             channel.configureBlocking(false);
             channel.socket().bind(address);
 
-            channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+//            channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            channel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE, new UDPBuffer());
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -151,19 +152,25 @@ class MIDIPort implements Runnable {
 //        final byte[] buffer = new byte[BUFFER_SIZE];
 //        final DatagramPacket packet = new DatagramPacket(buffer, fBUFFER_SIZE);
         DatagramChannel c = (DatagramChannel) key.channel();
-        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+//        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+        UDPBuffer b = (UDPBuffer) key.attachment();
         try {
 //            channel.socket().receive(packet);
 //            UDPBuffer b = new UDPBuffer();
-            SocketAddress clientAddress = c.receive(buffer);
+
+            b.buffer.clear();
+//            SocketAddress clientAddress = c.receive(buffer);
+            b.socketAddress = c.receive(b.buffer);
 //            Log.d("READ","buffer pos "+buffer.position());
-            DatagramPacket packet = new DatagramPacket(buffer.array(),buffer.capacity(),clientAddress);
+//            DatagramPacket packet = new DatagramPacket(buffer.array(),buffer.capacity(),clientAddress);
+//            DatagramPacket packet = new DatagramPacket(b.buffer.array(),b.buffer.capacity(),b.socketAddress);
 //                String output = "";
 //                for(byte a:packet.getData()) {
 //                    output += (String.format("%02x", a) + " ");
 //                }
 //                Log.d("READ"," "+output);
-            EventBus.getDefault().post(new PacketEvent(packet));
+//            EventBus.getDefault().post(new PacketEvent(packet));
+            EventBus.getDefault().post(new PacketEvent(new DatagramPacket(b.buffer.array(),b.buffer.capacity(),b.socketAddress)));
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -185,7 +192,8 @@ class MIDIPort implements Runnable {
                 DatagramChannel c = (DatagramChannel) key.channel();
                 DatagramPacket d = outboundQueue.poll();
 
-                byte[] r = d.getData();
+//                byte[] r = d.getData();
+                c.send(ByteBuffer.wrap(d.getData()),d.getSocketAddress());
 //                String output = "";
 //                for(byte a:r) {
 //                    output += (String.format("%02x", a) + " ");
@@ -199,7 +207,6 @@ class MIDIPort implements Runnable {
 //                Log.d("WRIT"," "+output);
 //                c.send(buffer,d.getSocketAddress());
 
-                c.send(ByteBuffer.wrap(r),d.getSocketAddress());
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -234,4 +241,10 @@ class MIDIPort implements Runnable {
         }
     }
 
+    private class UDPBuffer {
+        DatagramPacket datagramPacket;
+        SocketAddress  socketAddress;
+        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+
+    }
 }
