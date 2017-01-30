@@ -1,12 +1,9 @@
 package com.disappointedpig.dpmidi;
 
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -18,7 +15,7 @@ import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
-import com.disappointedpig.midi.MIDIMessage;
+import com.disappointedpig.midi.MIDIConstants;
 import com.disappointedpig.midi.MIDISession;
 import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
 import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
@@ -50,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
 
     SharedPreferences sharedpreferences;
 
-    ToggleButton midiSessionToggle, cmServiceToggle, backgroundToggleButton;
+    ToggleButton midiSessionToggle, cmServiceToggle, backgroundToggleButton, reconnectToggleButton;
     TextView midiStatusTextView;
 
     Button midiInviteButton, midiEndConnectionButton;
@@ -59,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
 
     Button testheartbeat;
 
+    boolean useReconnect = false;
 //    ArrayList<MIDIDebugEvent> activityList=new ArrayList<MIDIDebugEvent>();
 
 //    ArrayAdapter<MIDIDebugEvent> adapter;
@@ -79,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
         midiInviteButton = (Button) findViewById(R.id.midiInviteButton);
         midiEndConnectionButton = (Button) findViewById(R.id.midiEndConnectionButton);
         backgroundToggleButton = (ToggleButton) findViewById(R.id.backgroundToggleButton);
+        reconnectToggleButton = (ToggleButton) findViewById(R.id.reconnectToggleButton);
 
         midiSessionToggle = (ToggleButton) findViewById(R.id.midiSessionToggleButton);
         midiStatusTextView = (TextView) findViewById(R.id.midiStatus);
@@ -137,12 +136,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        reconnectToggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+//                MIDISession.getInstance().setAutoReconnect(isChecked);
+                useReconnect = isChecked;
+            }
+        });
+
         midiInviteButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString("address","172.16.1.23");
-                rinfo.putInt("port",5004);
+                rinfo.putString(MIDIConstants.RINFO_ADDR,"172.16.1.23");
+                rinfo.putInt(MIDIConstants.RINFO_PORT,5004);
+                rinfo.putBoolean(MIDIConstants.RINFO_RECON, useReconnect);
                 MIDISession.getInstance().connect(rinfo);
             }
         });
@@ -151,8 +158,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString("address","172.16.1.23");
-                rinfo.putInt("port",5004);
+                rinfo.putString(MIDIConstants.RINFO_ADDR,"172.16.1.23");
+                rinfo.putInt(MIDIConstants.RINFO_PORT,5004);
+                rinfo.putBoolean(MIDIConstants.RINFO_RECON, useReconnect);
                 MIDISession.getInstance().disconnect(rinfo);
             }
         });
@@ -165,26 +173,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-
-//    @Subscribe(threadMode = ThreadMode.MAIN)
-//    public void onMIDIDebugEvent(final MIDIDebugEvent event) {
-////        Toast.makeText(this, "got midi event", Toast.LENGTH_SHORT).show();
-////        Log.d("ahs", "got midi event");
-////        final Context context = this;
-////        Handler h = new Handler(Looper.getMainLooper());
-////        h.post(new Runnable() {
-////            public void run() {
-////                Toast.makeText(context, "got midi event", Toast.LENGTH_SHORT).show();
-////            }
-////        });
-//        updateList(event);
-//    }
-//
-//
-//    private void updateList(MIDIDebugEvent d) {
-//        activityList.add(d);
-//        adapter.notifyDataSetChanged();
-//    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -227,10 +215,10 @@ public class MainActivity extends AppCompatActivity {
     public void sendTestMIDI() {
         Log.d("Main","sendTestMidi 41,127");
         Bundle testMessage = new Bundle();
-        testMessage.putInt("command",0x09);
-        testMessage.putInt("channel",0);
-        testMessage.putInt("note",41);
-        testMessage.putInt("velocity",127);
+        testMessage.putInt(MIDIConstants.MSG_COMMAND,0x09);
+        testMessage.putInt(MIDIConstants.MSG_CHANNEL,0);
+        testMessage.putInt(MIDIConstants.MSG_NOTE,41);
+        testMessage.putInt(MIDIConstants.MSG_VELOCITY,127);
 //        MIDIMessage m = MIDIMessage.newUsing(testMessage);
         MIDISession.getInstance().sendMessage(testMessage);
 //        MIDISession.getInstance().sendMessage(41,127);

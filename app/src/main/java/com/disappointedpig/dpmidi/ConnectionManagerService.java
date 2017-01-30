@@ -61,13 +61,17 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
         } else {
             if(intent.getAction().equals(Constants.ACTION.STOPCMGR_ACTION)) {
                 Log.i(TAG, "Received STOPCMGR_ACTION ");
-                stopForeground(true);
                 cmsIsRunning = false;
+                ConnectionManager.GetInstance().stopMIDI();
+
+                stopForeground(true);
+                stopSelf();
             } else if(intent.getAction().equals(Constants.ACTION.START_MIDI_ACTION)) {
                 Log.i(TAG, "Received START_MIDI_ACTION ");
                 ConnectionManager.GetInstance().startMIDI();
             } else if(intent.getAction().equals(Constants.ACTION.STOP_MIDI_ACTION)) {
                 Log.i(TAG, "Received STOP_MIDI_ACTION ");
+
                 ConnectionManager.GetInstance().stopMIDI();
             } else {
                 Log.i(TAG, "Received UNKNOWN ACTION");

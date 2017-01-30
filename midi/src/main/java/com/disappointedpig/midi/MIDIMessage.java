@@ -28,10 +28,10 @@ public class MIDIMessage extends RTPMessage {
     }
 
     public static MIDIMessage newUsing(Bundle m) {
-        return newUsing(   m.getInt(Consts.MSG_COMMAND,0x09),
-                    m.getInt(Consts.MSG_CHANNEL,0),
-                    m.getInt(Consts.MSG_NOTE,0),
-                    m.getInt(Consts.MSG_VELOCITY,0));
+        return newUsing(   m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_COMMAND,0x09),
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_CHANNEL,0),
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_NOTE,0),
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_VELOCITY,0));
     }
 
 
@@ -61,10 +61,10 @@ public class MIDIMessage extends RTPMessage {
 
     public Bundle toBundle() {
         Bundle midi = new Bundle();
-        midi.putInt(Consts.MSG_COMMAND,this.channel_status);
-        midi.putInt(Consts.MSG_CHANNEL,this.channel);
-        midi.putInt(Consts.MSG_NOTE, this.note);
-        midi.putInt(Consts.MSG_VELOCITY, this.velocity);
+        midi.putInt(com.disappointedpig.midi.MIDIConstants.MSG_COMMAND,this.channel_status);
+        midi.putInt(com.disappointedpig.midi.MIDIConstants.MSG_CHANNEL,this.channel);
+        midi.putInt(com.disappointedpig.midi.MIDIConstants.MSG_NOTE, this.note);
+        midi.putInt(com.disappointedpig.midi.MIDIConstants.MSG_VELOCITY, this.velocity);
         return midi;
     }
 

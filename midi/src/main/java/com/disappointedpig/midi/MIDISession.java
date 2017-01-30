@@ -54,6 +54,7 @@ public class MIDISession {
         this.startTimeHR =  System.nanoTime();
         this.registered_eb = false;
         this.published_bonjour = false;
+        this.autoReconnect = false;
     }
 
     public static MIDISession getInstance() {
@@ -90,6 +91,8 @@ public class MIDISession {
     private NsdManager.DiscoveryListener mDiscoveryListener;
     private NsdManager.RegistrationListener mRegistrationListener;
     private NsdServiceInfo serviceInfo;
+
+    private boolean autoReconnect = false;
 
     public void init(Context context) {
         this.appContext = context;
@@ -138,11 +141,15 @@ public class MIDISession {
 
 
     public void stop() {
-        for (int i = 0; i < streams.size(); i++) {
-            streams.get(streams.keyAt(i)).sendEnd();
+        if(streams != null) {
+            for (int i = 0; i < streams.size(); i++) {
+                streams.get(streams.keyAt(i)).sendEnd();
+            }
         }
-        for (int i = 0; i < pendingStreams.size(); i++) {
-            pendingStreams.get(pendingStreams.keyAt(i)).sendEnd();
+        if(pendingStreams != null) {
+            for (int i = 0; i < pendingStreams.size(); i++) {
+                pendingStreams.get(pendingStreams.keyAt(i)).sendEnd();
+            }
         }
 
         if(controlChannel != null) {
@@ -185,9 +192,14 @@ public class MIDISession {
     }
 
     public void disconnect(Bundle rinfo) {
+        Log.d(TAG,"disconnect "+rinfo);
         MIDIStream s = getStream(rinfo);
         if(s != null) {
-            disconnect(s.ssrc);
+            Log.d(TAG,"stream to disconnect : "+s.ssrc);
+            s.sendEnd();
+        } else {
+            Log.e(TAG,"didn't find stream");
+
         }
     }
 
@@ -201,8 +213,8 @@ public class MIDISession {
     }
 
     private MIDIStream getStream(Bundle rinfo) {
-        for (int i = 0; i < pendingStreams.size(); i++) {
-            MIDIStream s = streams.get(pendingStreams.keyAt(i));
+        for (int i = 0; i < streams.size(); i++) {
+            MIDIStream s = streams.get(streams.keyAt(i));
             if(s.connectionMatch(rinfo)) {
                 return s;
             }
@@ -210,6 +222,13 @@ public class MIDISession {
         return null;
     }
 
+    public void setAutoReconnect(boolean b) {
+        autoReconnect = b;
+    }
+
+    public boolean getAutoReconnect() {
+        return autoReconnect;
+    }
 
     private Boolean isAlreadyConnected(Bundle rinfo) {
         Log.d(TAG,"isAlreadyConnected "+pendingStreams.size()+" "+streams.size());
@@ -217,7 +236,8 @@ public class MIDISession {
         boolean existsInStreams = false;
         Log.e(TAG,"checking pendingStreams...");
         for (int i = 0; i < pendingStreams.size(); i++) {
-            if(pendingStreams.get(pendingStreams.keyAt(i)).connectionMatch(rinfo)) {
+            MIDIStream ps = pendingStreams.get(pendingStreams.keyAt(i));
+            if((ps != null) && ps.connectionMatch(rinfo)) {
                 existsInPendingStreams = true;
                 break;
             }
@@ -244,7 +264,7 @@ public class MIDISession {
 ////            String key = ((MIDIStream)streams.keyAt(i));
 ////            Bundle b = (MIDIStream)streams. .getRinfo1();
 //            Bundle b = streams.get(streams.keyAt(i)).getRinfo1();
-//            if(b.getString(Consts.RINFO_ADDR).equals(rinfo.getString(Consts.RINFO_ADDR)) && b.getInt(Consts.RINFO_PORT) == rinfo.getInt(Consts.RINFO_PORT)) {
+//            if(b.getString(MIDIConstants.RINFO_ADDR).equals(rinfo.getString(MIDIConstants.RINFO_ADDR)) && b.getInt(MIDIConstants.RINFO_PORT) == rinfo.getInt(MIDIConstants.RINFO_PORT)) {
 //                return true;
 //            }
 //        }
@@ -253,7 +273,7 @@ public class MIDISession {
 
     public void sendUDPMessage(MIDIControl control, Bundle rinfo) {
 //        Log.d("MIDISession","sendUDPMessage:control");
-        if(rinfo.getInt(Consts.RINFO_PORT) % 2 == 0) {
+        if(rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) % 2 == 0) {
 //            Log.d("MIDISession", "sendUDPMessage control 5004 rinfo:" + rinfo.toString());
 //            controlChannel.sendMidi(control, rinfo);
             controlChannel.sendMidi(control, rinfo);
@@ -267,7 +287,7 @@ public class MIDISession {
     public void sendUDPMessage(MIDIMessage m, Bundle rinfo) {
 //        Log.d("MIDISession","sendUDPMessage:message");
         if(m != null && rinfo != null) {
-            if (rinfo.getInt(Consts.RINFO_PORT) % 2 == 0) {
+            if (rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) % 2 == 0) {
                 controlChannel.sendMidi(m, rinfo);
             } else {
                 messageChannel.sendMidi(m, rinfo);
@@ -281,10 +301,10 @@ public class MIDISession {
 
             MIDIMessage message = new MIDIMessage();
             message.createNote(
-                    m.getInt(Consts.MSG_COMMAND,0x09),
-                    m.getInt(Consts.MSG_CHANNEL,0),
-                    m.getInt(Consts.MSG_NOTE,0),
-                    m.getInt(Consts.MSG_VELOCITY,0));
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_COMMAND,0x09),
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_CHANNEL,0),
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_NOTE,0),
+                    m.getInt(com.disappointedpig.midi.MIDIConstants.MSG_VELOCITY,0));
             message.ssrc = this.ssrc;
 
             for (int i = 0; i < streams.size(); i++) {
@@ -404,11 +424,19 @@ public class MIDISession {
 //            Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
 //        }
         MIDIStream a = streams.get(e.stream_ssrc,null);
+
         if(a == null) {
             Log.d(TAG,"can't find stream with ssrc "+e.stream_ssrc);
         } else {
+            Bundle rinfo = (Bundle) a.getRinfo1().clone();
             a.shutdown();
             streams.delete(e.stream_ssrc);
+            if(rinfo.getBoolean(MIDIConstants.RINFO_RECON,false)) {
+                connect(rinfo);
+            }
+//            if(autoReconnect) {
+//                connect(rinfo);
+//            }
         }
         if(e.initiator_token != 0) {
             MIDIStream p = pendingStreams.get(e.initiator_token,null);
@@ -557,11 +585,14 @@ public class MIDISession {
 
     private void shutdownNSDListener() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-
-            if(mNsdManager != null) {
-                mNsdManager.unregisterService(mRegistrationListener);
-            }
+            try {
+                if (mNsdManager != null) {
+                    mNsdManager.unregisterService(mRegistrationListener);
+                }
 //            mNsdManager.stopServiceDiscovery(mDiscoveryListener);
+            } catch (IllegalArgumentException e) {
+                // absorb stupid listener not registered exception...
+            }
         }
 
     }

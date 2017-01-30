@@ -18,7 +18,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 class MIDIStream {
@@ -48,6 +47,9 @@ class MIDIStream {
     private ScheduledFuture<?> connectFuture, syncFuture, checkConnectionFuture;
     int connectTaskCount = 0, syncTaskCount=0;
     int syncFailCount = 0;
+
+    int reconnectFailCount = 0;
+
     boolean receivedSyncResponse = true;
 
     private static final int STREAM_CONNECTED_TIMEOUT_DEFAULT = 60000;
@@ -100,11 +102,11 @@ class MIDIStream {
         boolean match = false;
         Log.d(TAG,"connectionMatch "+r.toString() + " ? "+rinfo1.toString() + "/" +rinfo2.toString());
 
-        if(r.getString(Consts.RINFO_ADDR).equals(rinfo1.getString(Consts.RINFO_ADDR))) {
-            Log.d(TAG,"addr = addr "+r.getString(Consts.RINFO_ADDR));
-            if((r.getInt(Consts.RINFO_PORT) == rinfo1.getInt(Consts.RINFO_PORT)) ||
-                    ((r.getInt(Consts.RINFO_PORT) == rinfo2.getInt(Consts.RINFO_PORT)))) {
-                Log.d(TAG,"port = port "+r.getInt(Consts.RINFO_PORT));
+        if(r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR).equals(rinfo1.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR))) {
+            Log.d(TAG,"addr = addr "+r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR));
+            if((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo1.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)) ||
+                    ((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo2.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)))) {
+                Log.d(TAG,"port = port "+r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT));
                 match = true;
             } else {
                 Log.d(TAG,"port != port ");
@@ -223,7 +225,7 @@ class MIDIStream {
 
 
     void connect(final Bundle rinfo) {
-        Log.d("MIDIStream","connect "+rinfo.getString(Consts.RINFO_ADDR)+":"+rinfo.getInt(Consts.RINFO_PORT));
+        Log.d("MIDIStream","connect "+rinfo.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR)+":"+rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT));
         if(isConnected) {
             // already connected, should not reconnect with same stream
             Log.e("MIDI2Stream","this stream is already connected");
@@ -357,8 +359,8 @@ class MIDIStream {
             this.initiator_token = control.initiator_token;
             this.name = control.name;
             this.ssrc = control.ssrc;
-            rinfo1.putString(Consts.RINFO_NAME, control.name);
-        } else if(rinfo.getInt(Consts.RINFO_PORT) == rinfo1.getInt(Consts.RINFO_PORT)) {
+            rinfo1.putString(com.disappointedpig.midi.MIDIConstants.RINFO_NAME, control.name);
+        } else if(rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo1.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)) {
             return;
         } else if(rinfo2 == null) {
             rinfo2 = (Bundle) rinfo.clone();
@@ -382,8 +384,8 @@ class MIDIStream {
             connectFuture.cancel(true);
             Log.d(TAG,"set rinfo1 "+rinfo.toString());
             rinfo1 = (Bundle) rinfo.clone();
-            rinfo1.putString(Consts.RINFO_NAME,control.name);
-            rinfo.putInt(Consts.RINFO_PORT,rinfo.getInt(Consts.RINFO_PORT)+1);
+            rinfo1.putString(com.disappointedpig.midi.MIDIConstants.RINFO_NAME,control.name);
+            rinfo.putInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT,rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)+1);
             connectTaskCount = 0;
             connect(rinfo);
         } else if(!this.isConnected && rinfo2 == null) {
@@ -458,6 +460,20 @@ class MIDIStream {
         if(checkConnectionFuture != null && !checkConnectionFuture.isCancelled()) {
             checkConnectionFuture.cancel(true);
         }
+//        if(MIDISession.getInstance().getAutoReconnect()) {
+//            Bundle rinfo = (Bundle) rinfo1.clone();
+//            rinfo1 = rinfo2 = null;
+//            sendInvitation(rinfo);
+//            syncStarted = false;
+//            syncFailCount = 0;
+//            syncCount = 0;
+//            this.isInitiator = false;
+//            connectFuture = null;
+//            checkConnectionFuture = null;
+//            syncFuture = null;
+//            primarySyncComplete = false;
+//            return;
+//        }
         EventBus.getDefault().post(new MIDIConnectionEndEvent());
         EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
     }
@@ -467,7 +483,6 @@ class MIDIStream {
 
         message.createInvitationAccepted(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
         MIDISession.getInstance().sendUDPMessage(message, rinfo);
-
 
         if(!syncStarted && rinfo2 != null) {
             syncStarted = true;

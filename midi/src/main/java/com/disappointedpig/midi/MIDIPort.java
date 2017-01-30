@@ -234,7 +234,7 @@ class MIDIPort implements Runnable {
 
     private void addToOutboundQueue(byte[] data, Bundle rinfo) {
         try {
-            outboundQueue.add(new DatagramPacket(data, data.length, InetAddress.getByName(rinfo.getString(Consts.RINFO_ADDR)), rinfo.getInt(Consts.RINFO_PORT)));
+            outboundQueue.add(new DatagramPacket(data, data.length, InetAddress.getByName(rinfo.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR)), rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)));
             selector.wakeup();
         } catch (UnknownHostException e) {
             e.printStackTrace();
