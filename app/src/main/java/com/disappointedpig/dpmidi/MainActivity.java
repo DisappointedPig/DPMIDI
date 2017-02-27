@@ -88,7 +88,8 @@ public class MainActivity extends AppCompatActivity {
         testheartbeat.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                ConnectionManager.GetInstance().testHeartbeat();
+//                ConnectionManager.GetInstance().testHeartbeat();
+                Log.e("MAINActivity","should trigger test heartbeat");
             }
         });
 

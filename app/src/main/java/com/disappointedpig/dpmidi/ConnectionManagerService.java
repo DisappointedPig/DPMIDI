@@ -16,9 +16,11 @@ import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.disappointedpig.midi.MIDISession;
+
 import org.greenrobot.eventbus.EventBus;
 
-import static com.disappointedpig.dpmidi.ConnectionManager.ConnectionState.NOT_RUNNING;
+import static com.disappointedpig.dpmidi.ConnectionState.NOT_RUNNING;
 
 public class ConnectionManagerService extends Service implements DPMIDIForeground.Listener {
 
@@ -28,11 +30,20 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
     private WifiManager.WifiLock wifiLock;
     private PowerManager.WakeLock wakeLock;
 
+    private ConnectionState MIDIState;
+    private boolean midiRunning = false;
+    private static final String DEFAULT_BONJOUR_NAME = "testing";
+
+
     public ConnectionManagerService() {
-        Log.i(TAG, "init ");
+        Log.i(TAG, "--------------------------\n    init cms\n--------------------------\n");
         wifiLock = ((WifiManager) DPMIDIApplication.getAppContext().getSystemService(Context.WIFI_SERVICE)).createWifiLock(WifiManager.WIFI_MODE_FULL, "stagecallerWIFILock");
-//        wifiLock = ((WifiManager) DPMIDIApplication.getAppContext().getSystemService(Context.WIFI_SERVICE)).createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "stagecallerWIFILock");
         wakeLock = ((PowerManager) DPMIDIApplication.getAppContext().getSystemService(Context.POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "stagecallerWakeLock");
+
+        Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
+
+        MIDIState = NOT_RUNNING;
+
     }
 
     public void onCreate() {
@@ -55,6 +66,7 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
                 Log.i(TAG, "Received STARTCMGR_ACTION ");
                 createNotificationIntent();
                 DPMIDIForeground.get().addListener(this);
+//                EventBus.getDefault().register(this);
                 cmsIsRunning = true;
                 Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
                 checkMIDI();
@@ -65,17 +77,17 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
             if(intent.getAction().equals(Constants.ACTION.STOPCMGR_ACTION)) {
                 Log.i(TAG, "Received STOPCMGR_ACTION ");
                 cmsIsRunning = false;
-                ConnectionManager.GetInstance().stopMIDI();
-
+                DPMIDIForeground.get().removeListener(this);
+                stopMIDI();
+//                EventBus.getDefault().unregister(this);
                 stopForeground(true);
                 stopSelf();
             } else if(intent.getAction().equals(Constants.ACTION.START_MIDI_ACTION)) {
                 Log.i(TAG, "Received START_MIDI_ACTION ");
-                ConnectionManager.GetInstance().startMIDI();
+                startMIDI();
             } else if(intent.getAction().equals(Constants.ACTION.STOP_MIDI_ACTION)) {
                 Log.i(TAG, "Received STOP_MIDI_ACTION ");
-
-                ConnectionManager.GetInstance().stopMIDI();
+                stopMIDI();
             } else {
                 Log.i(TAG, "Received UNKNOWN ACTION");
             }
@@ -132,14 +144,17 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
     // check if midi should be on
     private void checkMIDI() {
         // check if midi should be on
-        ConnectionManager instance = ConnectionManager.GetInstance();
+        Log.d(TAG,"check MIDI");
         SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences("SCPreferences", Context.MODE_PRIVATE);
         if(sharedpreferences != null) {
             Boolean midiPref = sharedpreferences.getBoolean(Constants.PREF.MIDI_STATE_PREF, false);
-            if (midiPref && instance.getMIDIState() == NOT_RUNNING) {
-                instance.startMIDI();
-            } else if(!midiPref && instance.getMIDIState() == ConnectionManager.ConnectionState.RUNNING) {
-                instance.stopMIDI();
+            if (midiPref && MIDIState == NOT_RUNNING) {
+                startMIDI();
+                Log.d(TAG,"--- start MIDI");
+
+            } else if(!midiPref && MIDIState == ConnectionState.RUNNING) {
+                stopMIDI();
+                Log.d(TAG,"--- stop MIDI");
             }
         }
     }
@@ -168,49 +183,84 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
     public void onBecameForeground() {
         Log.d(TAG,"became foreground");
         Process.setThreadPriority(Process.THREAD_PRIORITY_FOREGROUND);
-
+        Log.e(TAG,"set priority to THREAD_PRIORITY_FOREGROUND");
         checkMIDI();
     }
 
     public void onBecameBackground() {
         Log.d(TAG,"became background");
 
-        ConnectionManager instance = ConnectionManager.GetInstance();
-
         checkLocks();
         // check if background is set
 
         if(!runInBackground()) {
             // turn off midi and osc as appropriate
-            switch (instance.getMIDIState()) {
+            switch (MIDIState) {
                 case RUNNING:
                 case STARTING:
                     Log.e(TAG,"stopping midi");
+                    Log.e(TAG,"set priority to THREAD_PRIORITY_DEFAULT");
+
                     Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
 
-                    instance.stopMIDI();
+                    stopMIDI();
                 case NOT_RUNNING:
                 case FAILED:
                 default:
                     break;
             }
         } else {
+            Log.e(TAG,"set priority to THREAD_PRIORITY_AUDIO");
             Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
         }
     }
 
     private boolean runInBackground() {
-//        SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences(Constants.PREF.SHAREDPREFERENCES_KEY, Context.MODE_PRIVATE);
-//        if(sharedpreferences == null) {
-//            return false;
-//        }
-//        boolean bg = sharedpreferences.getBoolean(Constants.PREF.BACKGROUND_STATE_PREF, false);
-//        Log.e(TAG,"background? "+(bg ? "YES" : "NO"));
-//        return(bg);
         boolean bg = ((DPMIDIApplication) this.getApplicationContext()).getRunInBackground();
-        Log.e(TAG,"background? "+(bg ? "YES" : "NO"));
+        Log.e(TAG,"should background? "+(bg ? "YES" : "NO"));
         return bg;
     }
 
 
+
+    // -------------------------------------------------------------------------------
+
+    private void setMIDIState(ConnectionState state) {
+        MIDIState = state;
+    }
+
+    public void startMIDI() {
+
+        setMIDIState(ConnectionState.STARTING);
+
+        MIDISession midi = MIDISession.getInstance();
+        if(midi != null) {
+            midi.init(DPMIDIApplication.getAppContext());
+            midi.setBonjourName(DEFAULT_BONJOUR_NAME);
+            midi.start();
+            midiRunning = true;
+            setMIDIState(ConnectionState.RUNNING);
+        } else {
+            midiRunning = false;
+            setMIDIState(ConnectionState.FAILED);
+        }
+        checkLocks();
+    }
+
+    public void stopMIDI() {
+        MIDISession midi = MIDISession.getInstance();
+        midiRunning = false;
+        setMIDIState(NOT_RUNNING);
+//        if(hbm != null) {
+//            hbm.stopHeartbeat();
+//        }
+
+        if(midi != null) {
+            midi.stop();
+        } else {
+            midiRunning = false;
+            setMIDIState(ConnectionState.FAILED);
+        }
+        checkLocks();
+    }
 }
