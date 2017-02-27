@@ -2,12 +2,12 @@ package com.disappointedpig.midi.events;
 
 import android.os.Bundle;
 
-public class MIDISyncronizationCompleteEvent {
+
+public class MIDIConnectionSentRequestEvent {
 
     public final Bundle rinfo;
 
-    public MIDISyncronizationCompleteEvent(final Bundle r) {
+    public MIDIConnectionSentRequestEvent(final Bundle r) {
         rinfo = r;
     }
-
 }

@@ -6,7 +6,7 @@ android {
     buildToolsVersion "25.0.2"
 
     defaultConfig {
-        minSdkVersion 9
+        minSdkVersion 14
         targetSdkVersion 25
         versionCode buildVersionCode()
         versionName version
@@ -32,6 +32,10 @@ dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
     compile 'org.greenrobot:eventbus:3.0.0'
+    compile 'org.greenrobot:essentials:3.0.0-RC1'
+//    compile 'com.orhanobut:hawk:2.0.1'
+//    compile 'com.github.trikita:kv:e27a3127e3'
+    compile 'com.github.rehacktive:waspdb:1.1.1'
 
 }
 

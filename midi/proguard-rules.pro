@@ -90,3 +90,7 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+
+# https://android-arsenal.com/details/1/3482
+-keep class net.rehacktive.waspdb.** { *; }
+-keep class com.esotericsoftware.kryo.** { *; }

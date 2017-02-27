@@ -1,8 +1,12 @@
 package com.disappointedpig.midi.events;
 
-/**
- * Created by jay on 8/9/16.
- */
+import android.os.Bundle;
 
 public class MIDIConnectionRequestRejectedEvent {
+    public final Bundle rinfo;
+
+    public MIDIConnectionRequestRejectedEvent(final Bundle r) {
+        rinfo = r;
+    }
+
 }

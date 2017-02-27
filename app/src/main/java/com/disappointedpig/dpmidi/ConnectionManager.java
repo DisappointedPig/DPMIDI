@@ -6,8 +6,29 @@ package com.disappointedpig.dpmidi;
 import android.content.Context;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.disappointedpig.midi.MIDISession;
+import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
+import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestAcceptedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestReceivedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestRejectedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionSentRequestEvent;
+
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
+import java.util.HashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+
+import static com.disappointedpig.midi.MIDIConstants.RINFO_ADDR;
+import static com.disappointedpig.midi.MIDIConstants.RINFO_FAIL;
+import static com.disappointedpig.midi.MIDIConstants.RINFO_PORT;
 
 public class ConnectionManager {
 
@@ -19,6 +40,14 @@ public class ConnectionManager {
 
     private boolean midiRunning = false, oscRunning = false;
     private HeartbeatManager hbm;
+
+    private boolean reconnectionInProgress = false;
+    private int reconnectionAttemptCount;
+    private static final int MAX_RECONNECT_ATTEMPT = 10;
+    private static final int PAUSE_AFTER_MAX_RECONNECT = 60000;
+
+//    private SparseArray<Bundle> connectionStats;
+//    HashMap<String, Bundle> connectionStats;
 
     public enum ConnectionState {
         NOT_RUNNING,
@@ -47,6 +76,8 @@ public class ConnectionManager {
         MIDIState = ConnectionState.NOT_RUNNING;
         OSCState = ConnectionState.NOT_RUNNING;
         wifiLock = ((WifiManager) DPMIDIApplication.getAppContext().getSystemService(Context.WIFI_SERVICE)).createWifiLock(WifiManager.WIFI_MODE_FULL, "dpmidiWIFILock");
+//        connectionStats = new HashMap<String, Bundle>();
+        EventBus.getDefault().register(this);
     }
 
     public ConnectionState getMIDIState() { return MIDIState; }
@@ -120,6 +151,34 @@ public class ConnectionManager {
         hbm.startHeartbeat();
     }
 
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDIConnectionRequestReceivedEvent(MIDIConnectionRequestReceivedEvent event) {
+        Log.d(TAG, "onMIDIConnectionRequestReceivedEvent - create rinfo in connectionstats");
+    }
 
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDIConnectionSentRequestEvent(MIDIConnectionSentRequestEvent event) {
+        Log.d(TAG,"MIDIConnectionSentRequestEvent - create rinfo in connectionstats");
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDIConnectionRequestAcceptedEvent(MIDIConnectionRequestAcceptedEvent event) {
+        Log.d(TAG,"onMIDIConnectionRequestAcceptedEvent - update rinfo to connectionstats");
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDIConnectionRequestRejectedEvent(MIDIConnectionRequestRejectedEvent event) {
+        Log.d(TAG,"onMIDIConnectionRequestRejectedEvent - update rinfo to connectionstats");
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDIConnectionEndEvent(MIDIConnectionEndEvent event) {
+        Log.d(TAG,"MIDIConnectionEndEvent - check if reconnect necessary");
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onMIDIConnectionEstablishedEvent(MIDIConnectionEstablishedEvent event) {
+        Log.d(TAG,"MIDIConnectionEstablishedEvent");
+    }
 }
 

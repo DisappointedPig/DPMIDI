@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
 import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
 import com.disappointedpig.midi.events.MIDIReceivedEvent;
 import com.disappointedpig.midi.events.MIDISessionNameRegisteredEvent;
@@ -17,13 +18,20 @@ import com.disappointedpig.midi.events.MIDISessionStartEvent;
 import com.disappointedpig.midi.events.MIDISessionStopEvent;
 import com.disappointedpig.midi.events.MIDISyncronizationCompleteEvent;
 import com.disappointedpig.midi.events.MIDISyncronizationStartEvent;
+import com.disappointedpig.midi.internal_events.AddressBookReadyEvent;
 import com.disappointedpig.midi.internal_events.ConnectionEstablishedEvent;
+import com.disappointedpig.midi.internal_events.ConnectionFailedEvent;
 import com.disappointedpig.midi.internal_events.ListeningEvent;
 import com.disappointedpig.midi.internal_events.PacketEvent;
 import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
 import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStartedEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStoppedEvent;
+
+import net.rehacktive.waspdb.WaspDb;
+import net.rehacktive.waspdb.WaspFactory;
+import net.rehacktive.waspdb.WaspHash;
+import net.rehacktive.waspdb.WaspListener;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -32,9 +40,16 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Random;
 
 import static android.content.Context.WIFI_SERVICE;
+import static com.disappointedpig.midi.MIDIConstants.RINFO_ADDR;
+import static com.disappointedpig.midi.MIDIConstants.RINFO_PORT;
+import static com.disappointedpig.midi.MIDIConstants.RINFO_RECON;
 
 public class MIDISession {
 
@@ -44,6 +59,9 @@ public class MIDISession {
     private static String BONJOUR_SEPARATOR = ".";
 
     private static boolean DEBUG = false;
+
+    private WaspDb db;
+    private WaspHash midiAddressBook;
 
     private MIDISession() {
         this.rate = 10000;
@@ -99,6 +117,9 @@ public class MIDISession {
         if(!registered_eb) {
             EventBus.getDefault().register(this);
             registered_eb = true;
+//            Hawk.init(context).build();
+            setupWaspDB();
+
         }
     }
 
@@ -176,12 +197,13 @@ public class MIDISession {
         }
     }
 
-    public void connect(Bundle rinfo) {
+    public void connect(final Bundle rinfo) {
         if(isRunning) {
             if(!isAlreadyConnected(rinfo)) {
                 Log.d(TAG,"opening connection to "+rinfo);
                 MIDIStream stream = new MIDIStream();
                 stream.connect(rinfo);
+                Log.d(TAG,"put "+stream.initiator_token+" in pendingStreams");
                 pendingStreams.put(stream.initiator_token, stream);
             } else {
                 Log.e(TAG,"already have open session to "+rinfo.toString());
@@ -234,7 +256,7 @@ public class MIDISession {
         Log.d(TAG,"isAlreadyConnected "+pendingStreams.size()+" "+streams.size());
         boolean existsInPendingStreams = false;
         boolean existsInStreams = false;
-        Log.e(TAG,"checking pendingStreams...");
+        Log.e(TAG,"checking pendingStreams... ("+pendingStreams.size()+") "+rinfo.toString());
         for (int i = 0; i < pendingStreams.size(); i++) {
             MIDIStream ps = pendingStreams.get(pendingStreams.keyAt(i));
             if((ps != null) && ps.connectionMatch(rinfo)) {
@@ -336,13 +358,19 @@ public class MIDISession {
     }
 
 
+    // streamConnectedEvent is called when client initiates connection... ...
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onStreamConnected(StreamConnectedEvent e) {
-//        Log.d("MIDI2Session","StreamConnectedEvent");
+        Log.d("MIDISession","StreamConnectedEvent");
+        Log.d(TAG,"get "+e.initiator_token+" from pendingStreams");
         MIDIStream stream = pendingStreams.get(e.initiator_token);
+
         if(stream != null) {
+            Log.d(TAG,"put "+e.initiator_token+" in  streams");
             streams.put(stream.ssrc, stream);
         }
+        Log.d(TAG,"remove "+e.initiator_token+" from pendingStreams");
+
         pendingStreams.delete(e.initiator_token);
 //        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent());
     }
@@ -355,19 +383,22 @@ public class MIDISession {
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onSyncronizeStartedEvent(SyncronizeStartedEvent e) {
 //        Log.d("MIDISession","SyncronizeStartedEvent");
-        EventBus.getDefault().post(new MIDISyncronizationStartEvent());
+
+        EventBus.getDefault().post(new MIDISyncronizationStartEvent(e.rinfo));
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onSyncronizeStoppedEvent(SyncronizeStoppedEvent e) {
 //        Log.d("MIDISession","SyncronizeStoppedEvent");
-        EventBus.getDefault().post(new MIDISyncronizationCompleteEvent());
+        EventBus.getDefault().post(new MIDISyncronizationCompleteEvent(e.rinfo));
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onConnectionEstablishedEvent(ConnectionEstablishedEvent e) {
-//        Log.d("MIDISession","ConnectionEstablishedEvent");
-        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent(e.getRInfo()));
+        Log.d("MIDISession","ConnectionEstablishedEvent");
+        EventBus.getDefault().post(new MIDIConnectionEstablishedEvent(e.rinfo));
+        addToAddressBook(e.rinfo);
+
     }
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
@@ -386,7 +417,7 @@ public class MIDISession {
                 if(applecontrol.initiator_token != 0) {
                     MIDIStream pending = pendingStreams.get(applecontrol.initiator_token);
                     if (pending != null) {
-//                        Log.d("MIDISession", " - got pending stream by token");
+                        Log.d("MIDISession", " - got pending stream by token");
                         pending.handleControlMessage(applecontrol, e.getRInfo());
                         return;
                     }
@@ -431,6 +462,7 @@ public class MIDISession {
             Bundle rinfo = (Bundle) a.getRinfo1().clone();
             a.shutdown();
             streams.delete(e.stream_ssrc);
+
             if(rinfo.getBoolean(MIDIConstants.RINFO_RECON,false)) {
                 connect(rinfo);
             }
@@ -446,6 +478,23 @@ public class MIDISession {
                 p.shutdown();
                 pendingStreams.delete(e.initiator_token);
             }
+        }
+        if(e.rinfo != null) {
+            EventBus.getDefault().post(new MIDIConnectionEndEvent((Bundle)e.rinfo.clone()));
+        }
+    }
+
+    @Subscribe
+    public void onConnectionFailedEvent(ConnectionFailedEvent e) {
+        Log.d(TAG,"onConnectionFailedEvent");
+        switch(e.code) {
+            case REJECTED_INVITATION:
+                Log.d(TAG,"initiator_code "+e.initiator_code);
+                pendingStreams.delete(e.initiator_code);
+                break;
+            default:
+                break;
+
         }
     }
 
@@ -604,5 +653,74 @@ public class MIDISession {
     // TODO : make this actually work...
     boolean isHostConnectionAllowed(Bundle rinfo) {
         return true;
+    }
+
+
+    // -------------------------------------------------
+
+    public void setupWaspDB() {
+        String path = appContext.getFilesDir().getPath();
+        String databaseName = "MIDIAddressBook";
+        String password = "passw0rd";
+
+        WaspFactory.openOrCreateDatabase(path, databaseName, password, new WaspListener<WaspDb>() {
+            @Override
+            public void onDone(WaspDb waspDb) {
+                db = waspDb;
+                midiAddressBook = db.openOrCreateHash("midiAddressBook");
+                if (midiAddressBook != null && midiAddressBook.getAllKeys() != null) {
+                    Log.d(TAG, "setupWaspDB - count " + midiAddressBook.getAllKeys().size());
+                    EventBus.getDefault().post(new AddressBookReadyEvent());
+                }
+
+            }
+        });
+
+//            db = WaspFactory.openOrCreateDatabase(path, databaseName, password, new WaspListener<WaspDb>() {
+//                        @Override
+//                        public void onDone(WaspDb waspDb) {
+//                            Log.d("WaspFactoryINIT","on done?");
+//                        }
+//                    });
+    }
+
+
+    public Bundle getEntryFromAddressBook(String key) {
+        MIDIAddressBookEntry abe = midiAddressBook.get(key);
+        return abe.rinfo();
+    }
+
+    private boolean addToAddressBook(Bundle rinfo) {
+        String key = rinfoToKey(rinfo);
+        Log.d(TAG,"addToAddressBook : "+key+" "+rinfo.toString());
+        if(!rinfo.getBoolean(RINFO_RECON, false)) {
+            // reinforce false (in case RECON isn't in bundle) - I guess I could
+            // iterate over keySet - honestly, I don't know why I'm bothering to do this
+            rinfo.putBoolean(RINFO_RECON,false);
+        }
+        return midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
+    }
+
+    private String rinfoToKey(Bundle rinfo) {
+        return String.format(Locale.ENGLISH,"%1$s:%2$d",rinfo.getString(RINFO_ADDR),rinfo.getInt(RINFO_PORT,1234));
+    }
+
+    public ArrayList<Bundle> getAllAddressBook() {
+
+        HashMap<String,Bundle> hm = midiAddressBook.getAllData();
+        Collection<Bundle> values = hm.values();
+        ArrayList<Bundle> list = new ArrayList<Bundle>(values);
+
+        return list;
+    }
+
+    // whenever a connect is called, check addressbook to see if we need to
+    // add RECON:true
+    private void checkAddressBookForReconnect(Bundle rinfo) {
+        Bundle abentry = getEntryFromAddressBook(rinfoToKey(rinfo));
+        if(abentry != null) {
+            Log.d(TAG,"checkAddressBookForReconnect : ");
+            rinfo.putBoolean(RINFO_RECON,abentry.getBoolean(RINFO_RECON,false));
+        }
     }
 }

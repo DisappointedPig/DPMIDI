@@ -37,3 +37,7 @@
 #-keepclassmembers class * extends org.greenrobot.event.util.ThrowableFailureEvent {
 #    <init>(java.lang.Throwable);
 #}
+
+# https://android-arsenal.com/details/1/3482
+-keep class net.rehacktive.waspdb.** { *; }
+-keep class com.esotericsoftware.kryo.** { *; }

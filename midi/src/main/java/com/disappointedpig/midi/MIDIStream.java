@@ -4,8 +4,11 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
+import com.disappointedpig.midi.events.MIDIConnectionRequestReceivedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestRejectedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionSentRequestEvent;
 import com.disappointedpig.midi.internal_events.ConnectionEstablishedEvent;
+import com.disappointedpig.midi.internal_events.ConnectionFailedEvent;
 import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
 import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStartedEvent;
@@ -17,21 +20,45 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 
+import static com.disappointedpig.midi.MIDIConstants.RINFO_FAIL;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+
+/* ---------------------------------------------------------
+    internal events:
+        connection invite received
+        connection invite sent
+        connection invite reject received
+        connection invite accept received
+        connection end received
+        primary sync started
+        primary sync complete
+        connection failed (reason?)
+            unable to connect
+            connection lost, no reconnect
+            connection lost, reconnect timeout
+            connection lost
+   --------------------------------------------------------- */
 class MIDIStream {
 
     int initiator_token = 0;
     int ssrc = 0;
+
     private Bundle rinfo1 = null;
     private Bundle rinfo2 = null;
+
     private String name = "";
+
     int lastSentSequenceNr =  (int)Math.round(Math.random() * 0xffff);
+
     int firstReceivedSequenceNumber = -1;
     int lastReceivedSequenceNumber = -1;
     long latency = 0L;
+
     private boolean isConnected = false;
+
     long receiverFeedbackTimeout = 0L;
     long lastMessageTime = 0L;
     private long timeDifference = 0L;
@@ -41,7 +68,6 @@ class MIDIStream {
     private int syncCount = 0;
 
     private long lastPacketReceivedTime = 0L;
-//    long ssrc;
 
     private ScheduledExecutorService connectService, syncService, checkConnectionService;
     private ScheduledFuture<?> connectFuture, syncFuture, checkConnectionFuture;
@@ -102,6 +128,8 @@ class MIDIStream {
         boolean match = false;
         Log.d(TAG,"connectionMatch "+r.toString() + " ? "+rinfo1.toString() + "/" +rinfo2.toString());
 
+        if(rinfo1 == null || rinfo2 == null) { return false; }
+
         if(r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR).equals(rinfo1.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR))) {
             Log.d(TAG,"addr = addr "+r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR));
             if((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo1.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)) ||
@@ -133,7 +161,12 @@ class MIDIStream {
                 } else {
                     connectTaskCount++;
                     if(connectTaskCount > connectCountMax ) {
-                        Log.e(TAG,"connection task count hit max");
+//                        Log.e(TAG,"connection task count hit max");
+                        rinfo.putBoolean(RINFO_FAIL,true);
+                        EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.UNABLE_TO_CONNECT,rinfo));
+
+                        handleFailedConnection();
+
                         shutdown();
                         return;
                     }
@@ -147,16 +180,10 @@ class MIDIStream {
             }
         }
         void shutdown() {
-            Log.d(TAG,"connection task shutdown");
+//            Log.d(TAG,"connection task shutdown");
             sendEnd(rinfo);
-            connectFuture.cancel(true);
+            connectFuture.cancel(false);
         }
-    }
-
-    private void sendSyncComplete() {
-        receivedSyncResponse = true;
-        syncFailCount = 0;
-        EventBus.getDefault().post(new SyncronizeStoppedEvent());
     }
 
     private class SyncTask implements Runnable {
@@ -175,6 +202,10 @@ class MIDIStream {
                     syncFailCount++;
                 }
                 if(syncFailCount >= syncFailCountMax) {
+                    Log.d(TAG,"Sync fail count > max ");
+                    EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.SYNC_FAILURE,rinfo));
+
+                    handleFailedConnection();
                     shutdown();
                 }
                 if(isInitiator) {
@@ -197,7 +228,7 @@ class MIDIStream {
         void shutdown() {
 
             sendEnd(rinfo);
-            syncFuture.cancel(true);
+            syncFuture.cancel(false);
         }
     }
 
@@ -206,21 +237,32 @@ class MIDIStream {
         public void run() {
 
             long timedifference = System.currentTimeMillis() - lastPacketReceivedTime;
-            Log.e(TAG,"last packet time difference is "+timedifference);
+//            Log.e(TAG,"last packet time difference is "+timedifference);
             if(timedifference > connectionTimeoutMax) {
                 // stream connection has probably failed
-                Log.e(TAG,"probably lost connection with "+rinfo1.toString()+" ssrc"+ssrc);
-
+                Log.e(TAG,"last packet time difference is "+timedifference+"   probably lost connection with "+rinfo1.toString()+" ssrc"+ssrc);
+                rinfo1.putBoolean(RINFO_FAIL,true);
+                EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.CONNECTION_LOST,rinfo1));
+                handleFailedConnection();
                 shutdown();
             } else {
-                Log.e(TAG,"connection still up "+rinfo1.toString()+" ssrc"+ssrc);
+                Log.e(TAG,"last packet time difference is "+timedifference+"   connection still up "+rinfo1.toString()+" ssrc"+ssrc);
             }
         }
 
         void shutdown() {
             sendEnd();
-            checkConnectionFuture.cancel(true);
+            checkConnectionFuture.cancel(false);
         }
+    }
+
+
+
+    private void sendSyncComplete() {
+        receivedSyncResponse = true;
+        syncFailCount = 0;
+        // TODO: change this to synccomplete
+        EventBus.getDefault().post(new SyncronizeStoppedEvent(this.rinfo1));
     }
 
 
@@ -245,15 +287,26 @@ class MIDIStream {
         connectFuture = connectService.scheduleAtFixedRate(t, 0, 1, SECONDS);
 
 
-// I don't fully understand why this is here
 //        connectService.schedule(new Runnable() {
 //            @Override
 //            public void run() {
 //                Log.d(TAG,"timeout - cancel connection task ");
-//
-//                connectFuture.cancel(false);
+//                if(connectFuture != null) {
+//                    connectFuture.cancel(false);
+//                }
 //            }
 //        }, 1, MINUTES);
+    }
+
+    void handleFailedConnection() {
+        Log.e(TAG,"handleFailedConnection");
+        isConnected = false;
+        isInitiator = false;
+        primarySyncComplete = false;
+        rinfo2 = rinfo1 = null;
+        cancelCheckConnectionFuture();
+        cancelConnectFuture();
+        cancelSyncFuture();
     }
 
     private void cancelConnectFuture() {
@@ -304,6 +357,7 @@ class MIDIStream {
         invite.createInvitation(initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
 //        invite.dumppacket();
         MIDISession.getInstance().sendUDPMessage(invite,rinfo);
+        EventBus.getDefault().post(new MIDIConnectionSentRequestEvent(rinfo));
     }
 
     private int generateRandomInteger(int octets) {
@@ -316,24 +370,24 @@ class MIDIStream {
 
         switch(control.command) {
             case INVITATION:
-                Log.d("MIDIStream","handle INVITATION");
+//                Log.d("MIDIStream","handle INVITATION");
                 handleInvitation(control,rinfo);
                 resetCheckConnectionService();
                 break;
             case INVITATION_ACCEPTED:
-                Log.d("MIDIStream","handle INVITATION_ACCEPTED");
+//                Log.d("MIDIStream","handle INVITATION_ACCEPTED");
                 handleInvitationAccepted(control, rinfo);
                 break;
             case INVITATION_REJECTED:
-                Log.d("MIDIStream","handle INVITATION_REJECTED");
+//                Log.d("MIDIStream","handle INVITATION_REJECTED");
                 handleInvitationRejected(control, rinfo);
                 break;
             case END:
-                Log.d("MIDIStream","handle END");
+//                Log.d("MIDIStream","handle END");
                 handleEnd();
                 break;
             case SYNCHRONIZATION:
-                Log.d("MIDIStream","handle SYNCHRONIZATION");
+//                Log.d("MIDIStream","handle SYNCHRONIZATION");
                 if(isInitiator) {
                     receivedSyncResponse = true;
                 }
@@ -360,11 +414,13 @@ class MIDIStream {
             this.name = control.name;
             this.ssrc = control.ssrc;
             rinfo1.putString(com.disappointedpig.midi.MIDIConstants.RINFO_NAME, control.name);
+            EventBus.getDefault().post(new MIDIConnectionRequestReceivedEvent(rinfo1));
         } else if(rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo1.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)) {
             return;
         } else if(rinfo2 == null) {
             rinfo2 = (Bundle) rinfo.clone();
             this.isConnected = true;
+
         } else {
             return;
         }
@@ -411,21 +467,13 @@ class MIDIStream {
         }
 
         CheckConnectionTask t = new CheckConnectionTask();
-        checkConnectionFuture = checkConnectionService.scheduleAtFixedRate(t, 0, 60000, MILLISECONDS);
-
-//        checkConnectionService.schedule(new Runnable() {
-//            @Override
-//            public void run() {
-//                Log.d(TAG,"hit checkConnection timeout?");
-//                checkConnectionFuture.cancel(false);
-//            }
-//        }, 70000 , MILLISECONDS);
+        checkConnectionFuture = checkConnectionService.scheduleAtFixedRate(t, 0, 30000, MILLISECONDS);
 
     }
 
     private void resetSyncService(int time) {
         if(!primarySyncComplete) {
-            EventBus.getDefault().post(new SyncronizeStartedEvent());
+            EventBus.getDefault().post(new SyncronizeStartedEvent(this.rinfo1));
         }
         if(syncFuture != null) {
             syncFuture.cancel(true);
@@ -434,18 +482,14 @@ class MIDIStream {
         SyncTask t = new SyncTask();
         syncFuture = syncService.scheduleAtFixedRate(t, 0, time, MILLISECONDS);
 
-//        syncService.schedule(new Runnable() {
-//            @Override
-//            public void run() {
-//                syncFuture.cancel(false);
-//            }
-//        }, 2, MINUTES);
     }
 
     private void handleInvitationRejected(MIDIControl control, Bundle rinfo) {
         connectFuture.cancel(true);
-        // TODO : put rinfo in event
-        EventBus.getDefault().post(new MIDIConnectionRequestRejectedEvent());
+
+
+        EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.REJECTED_INVITATION,rinfo,control.initiator_token));
+        EventBus.getDefault().post(new MIDIConnectionRequestRejectedEvent(rinfo));
     }
 
     private void handleEnd() {
@@ -474,8 +518,8 @@ class MIDIStream {
 //            primarySyncComplete = false;
 //            return;
 //        }
-        EventBus.getDefault().post(new MIDIConnectionEndEvent());
-        EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
+//        EventBus.getDefault().post(new MIDIConnectionEndEvent(this.rinfo1));
+        EventBus.getDefault().post(new StreamDisconnectEvent(ssrc,(Bundle)this.rinfo1.clone()));
     }
 
     private void sendInvitationAccepted(Bundle rinfo) {
@@ -486,7 +530,7 @@ class MIDIStream {
 
         if(!syncStarted && rinfo2 != null) {
             syncStarted = true;
-            EventBus.getDefault().post(new SyncronizeStartedEvent());
+            EventBus.getDefault().post(new SyncronizeStartedEvent(this.rinfo1));
         }
 
     }
@@ -510,19 +554,22 @@ class MIDIStream {
 //        message.createEnd(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
 //        MIDISession.getInstance().sendUDPMessage(message, rinfo1);
 //        EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
-        sendEnd(rinfo1);
+        if(rinfo1 != null) {
+            sendEnd(rinfo1);
+        }
     }
 
     private void sendEnd(Bundle rinfo) {
+        Log.d(TAG,"send end "+rinfo.toString());
         MIDIControl message = new MIDIControl();
         message.createEnd(this.initiator_token, MIDISession.getInstance().ssrc, MIDISession.getInstance().bonjourName);
         MIDISession.getInstance().sendUDPMessage(message, rinfo);
 
         if(isConnected) {
-            EventBus.getDefault().post(new StreamDisconnectEvent(ssrc));
+            EventBus.getDefault().post(new StreamDisconnectEvent(ssrc, (Bundle)this.rinfo1.clone()));
         }
         else {
-            EventBus.getDefault().post(new StreamDisconnectEvent(ssrc, initiator_token));
+            EventBus.getDefault().post(new StreamDisconnectEvent(ssrc, initiator_token, (Bundle)this.rinfo1.clone()));
         }
         isConnected = false;
 
@@ -573,7 +620,7 @@ class MIDIStream {
             MIDISession.getInstance().sendUDPMessage(outboundSyncMessage, rinfo2);
             if(!primarySyncComplete && ++syncCount > 3) {
                 primarySyncComplete = true;
-                EventBus.getDefault().post(new SyncronizeStoppedEvent());
+                EventBus.getDefault().post(new SyncronizeStoppedEvent(this.rinfo1));
                 EventBus.getDefault().post(new ConnectionEstablishedEvent(rinfo1));
             }
         }

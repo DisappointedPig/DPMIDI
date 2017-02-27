@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.Process;
 import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 import android.widget.Toast;
@@ -38,6 +39,7 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
         super.onCreate();
         Log.i(TAG, "onCreate ");
     }
+
     @Override
     public int onStartCommand(Intent intent, final int flags, int startId) {
         Log.i(TAG, "onStartCommand ");
@@ -54,6 +56,7 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
                 createNotificationIntent();
                 DPMIDIForeground.get().addListener(this);
                 cmsIsRunning = true;
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
                 checkMIDI();
                 checkLocks();
 
@@ -93,14 +96,17 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
 
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
 
-        Intent startMIDIIntent = new Intent(this, ConnectionManagerService.class);
-        startMIDIIntent.setAction(Constants.ACTION.START_MIDI_ACTION);
-        PendingIntent pstartMIDIIntent = PendingIntent.getService(this, 0, startMIDIIntent, 0);
+//        Intent startMIDIIntent = new Intent(this, ConnectionManagerService.class);
+//        startMIDIIntent.setAction(Constants.ACTION.START_MIDI_ACTION);
+//        PendingIntent pstartMIDIIntent = PendingIntent.getService(this, 0, startMIDIIntent, 0);
 
-        Intent stopMIDIIntent = new Intent(this, ConnectionManagerService.class);
-        stopMIDIIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
-        PendingIntent pstopMIDIIntent = PendingIntent.getService(this, 0, stopMIDIIntent, 0);
+//        Intent stopMIDIIntent = new Intent(this, ConnectionManagerService.class);
+//        stopMIDIIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
+//        PendingIntent pstopMIDIIntent = PendingIntent.getService(this, 0, stopMIDIIntent, 0);
 
+        Intent stopCMGRIntent = new Intent(this, ConnectionManagerService.class);
+        stopCMGRIntent.setAction(Constants.ACTION.STOPCMGR_ACTION);
+        PendingIntent pstopCMGRSIntent = PendingIntent.getService(this, 0, stopCMGRIntent, 0);
 
 
         Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
@@ -113,9 +119,11 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
                 .setLargeIcon(Bitmap.createScaledBitmap(icon, 128, 128, false))
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
-                .addAction(android.R.drawable.ic_media_play, "Start MIDI", pstartMIDIIntent)
-                .addAction(android.R.drawable.ic_media_pause, "Stop MIDI", pstopMIDIIntent)
+                .addAction(android.R.drawable.ic_media_play, "Stop CMGRS", pstopCMGRSIntent)
                 .build();
+
+//        .addAction(android.R.drawable.ic_media_play, "Start MIDI", pstartMIDIIntent)
+//        .addAction(android.R.drawable.ic_media_pause, "Stop MIDI", pstopMIDIIntent)
 
         startForeground(Constants.NOTIFICATION_ID.CONNECTIONMGR, notification);
 
@@ -159,6 +167,8 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
 
     public void onBecameForeground() {
         Log.d(TAG,"became foreground");
+        Process.setThreadPriority(Process.THREAD_PRIORITY_FOREGROUND);
+
         checkMIDI();
     }
 
@@ -176,13 +186,16 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
                 case RUNNING:
                 case STARTING:
                     Log.e(TAG,"stopping midi");
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);
+
                     instance.stopMIDI();
                 case NOT_RUNNING:
                 case FAILED:
                 default:
                     break;
             }
-
+        } else {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
         }
     }
 

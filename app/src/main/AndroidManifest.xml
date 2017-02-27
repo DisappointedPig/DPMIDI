@@ -24,10 +24,6 @@
         </activity>
 
         <service
-            android:name=".MIDIService"
-            android:enabled="true"
-            android:exported="true" />
-        <service
             android:name=".ConnectionManagerService"
             android:enabled="true"
             android:exported="true"></service>
