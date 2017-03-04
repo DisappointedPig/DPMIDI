@@ -26,7 +26,10 @@ public class MIDIAddressBookEntry {
 
     public Bundle rinfo() {
         Bundle rinfo = new Bundle();
-
+        rinfo.putString(RINFO_NAME,name);
+        rinfo.putString(RINFO_NAME,address);
+        rinfo.putInt(RINFO_PORT,port);
+        rinfo.putBoolean(RINFO_RECON,reconnect);
         return rinfo;
     }
 
@@ -45,6 +48,8 @@ public class MIDIAddressBookEntry {
     public int getPort() {
         return port;
     }
+
+    public String getAddressPort() { return address+":"+port; }
 
     public void setName(String n) {
         name = n;

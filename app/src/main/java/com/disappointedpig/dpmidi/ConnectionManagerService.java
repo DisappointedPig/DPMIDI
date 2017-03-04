@@ -1,5 +1,6 @@
 package com.disappointedpig.dpmidi;
 
+import android.app.Activity;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -9,7 +10,10 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.wifi.WifiManager;
+import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Process;
 import android.support.v7.app.NotificationCompat;
@@ -20,6 +24,9 @@ import com.disappointedpig.midi.MIDISession;
 
 import org.greenrobot.eventbus.EventBus;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import static com.disappointedpig.dpmidi.ConnectionState.NOT_RUNNING;
 
 public class ConnectionManagerService extends Service implements DPMIDIForeground.Listener {
@@ -29,6 +36,9 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
     private boolean cmsIsRunning = false;
     private WifiManager.WifiLock wifiLock;
     private PowerManager.WakeLock wakeLock;
+
+    private final Binder binder     = new LocalBinder();
+    private Map<Activity, IListenerFunctions> clients    = new ConcurrentHashMap<Activity, IListenerFunctions>();
 
     private ConnectionState MIDIState;
     private boolean midiRunning = false;
@@ -72,6 +82,29 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
                 checkMIDI();
                 checkLocks();
 
+                for (final Activity client : clients.keySet()) {
+
+                    try {
+
+                        // Call the setLocation in the main thread (ui thread) as it updates
+                        // the ui.
+                        // If we dont use the handler and just exec the code in the run() we
+                        // get a CalledFromWrongThreadException
+                        Handler lo = new Handler(Looper.getMainLooper());
+                        lo.post(new Runnable() {
+
+                            public void run() {
+                                IListenerFunctions callback = clients.get(client);
+                                callback.cmsStarted();
+                            }
+                        });
+
+                    } catch (Throwable t) {
+                        t.printStackTrace();
+                    }
+                }
+
+
             }
         } else {
             if(intent.getAction().equals(Constants.ACTION.STOPCMGR_ACTION)) {
@@ -97,7 +130,8 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
     @Override
     public IBinder onBind(Intent intent) {
         // TODO: Return the communication channel to the service.
-        throw new UnsupportedOperationException("Not yet implemented");
+//        throw new UnsupportedOperationException("Not yet implemented");
+        return binder;
     }
 
     private void createNotificationIntent() {
@@ -211,7 +245,7 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
             }
         } else {
             Log.e(TAG,"set priority to THREAD_PRIORITY_AUDIO");
-            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
         }
     }
 
@@ -240,11 +274,16 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
             midi.start();
             midiRunning = true;
             setMIDIState(ConnectionState.RUNNING);
+
         } else {
             midiRunning = false;
             setMIDIState(ConnectionState.FAILED);
+
         }
         checkLocks();
+        for (Activity client : clients.keySet()) {
+            updateClients(client);
+        }
     }
 
     public void stopMIDI() {
@@ -262,5 +301,52 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
             setMIDIState(ConnectionState.FAILED);
         }
         checkLocks();
+        for (Activity client : clients.keySet()) {
+            updateClients(client);
+        }
     }
+
+
+    public class LocalBinder extends Binder implements IServiceFunctions {
+
+        // Registers a Activity to receive updates
+        public void registerActivity(Activity activity, IListenerFunctions callback) {
+            clients.put(activity, callback);
+        }
+
+        public void unregisterActivity(Activity activity) {
+            clients.remove(activity);
+        }
+
+        public ConnectionState getMIDIState() {
+            return MIDIState;
+        }
+
+        public boolean cmsIsRunning() { return cmsIsRunning; }
+
+    }
+
+
+    private void updateClients(final Activity client) {
+        // Get the location
+        try {
+
+            // Call the setLocation in the main thread (ui thread) as it updates
+            // the ui.
+            // If we dont use the handler and just exec the code in the run() we
+            // get a CalledFromWrongThreadException
+            Handler lo = new Handler(Looper.getMainLooper());
+            lo.post(new Runnable() {
+
+                public void run() {
+                    IListenerFunctions callback = clients.get(client);
+                    callback.midiStateChanged(MIDIState);
+                }
+            });
+
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+
 }

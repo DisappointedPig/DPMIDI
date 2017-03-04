@@ -1,9 +1,12 @@
 package com.disappointedpig.dpmidi;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -45,6 +48,25 @@ public class MainActivity extends AppCompatActivity {
         int position;
     }
 
+    private IServiceFunctions service = null;
+
+    private ServiceConnection svcConn = new ServiceConnection() {
+        public void onServiceConnected(ComponentName className, IBinder binder) {
+            service = (IServiceFunctions) binder;
+
+            try {
+                service.registerActivity(MainActivity.this, listener);
+            } catch (Throwable t) {
+
+            }
+        }
+
+        public void onServiceDisconnected(ComponentName className) {
+            service = null;
+        }
+
+    };
+
     SharedPreferences sharedpreferences;
 
     ToggleButton midiSessionToggle, cmServiceToggle, backgroundToggleButton, reconnectToggleButton;
@@ -72,6 +94,15 @@ public class MainActivity extends AppCompatActivity {
 
         EventBus.getDefault().register(this);
 
+        //start cms
+        Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
+        startIntent.setAction(Constants.ACTION.STARTCMGR_ACTION);
+        startService(startIntent);
+
+        bindToCMGRS();
+        // bind to CMS
+//        bindService(new Intent(this, ConnectionManagerService.class), svcConn, BIND_AUTO_CREATE);
+
         cmServiceToggle = (ToggleButton) findViewById(R.id.cmServiceToggleButton);
 
         midiInviteButton = (Button) findViewById(R.id.midiInviteButton);
@@ -93,16 +124,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
         cmServiceToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
                     Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
                     startIntent.setAction(Constants.ACTION.STARTCMGR_ACTION);
                     startService(startIntent);
+                    // bind to CMS
+                    bindToCMGRS();
                 } else {
                     Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
                     startIntent.setAction(Constants.ACTION.STOPCMGR_ACTION);
                     startService(startIntent);
+                    unbindFromCMGRS();
                 }
             }
         });
@@ -125,11 +160,14 @@ public class MainActivity extends AppCompatActivity {
 
         midiSessionToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences("SCPreferences", Context.MODE_PRIVATE);
                 if (isChecked) {
+                    sharedpreferences.edit().putBoolean(Constants.PREF.MIDI_STATE_PREF,true).commit();
                     Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
                     startIntent.setAction(Constants.ACTION.START_MIDI_ACTION);
                     startService(startIntent);
                 } else {
+                    sharedpreferences.edit().putBoolean(Constants.PREF.MIDI_STATE_PREF,false).commit();
                     Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
                     startIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
                     startService(startIntent);
@@ -173,6 +211,40 @@ public class MainActivity extends AppCompatActivity {
                 sendTestMIDI();
             }
         });
+
+        SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences("SCPreferences", Context.MODE_PRIVATE);
+
+//        if(service.cmsIsRunning() == true) {
+        if(service != null) {
+            cmServiceToggle.setChecked(service.cmsIsRunning());
+            midiSessionToggle.setChecked(sharedpreferences.getBoolean(Constants.PREF.MIDI_STATE_PREF, false));
+            backgroundToggleButton.setChecked(sharedpreferences.getBoolean(Constants.PREF.BACKGROUND_STATE_PREF, false));
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences("SCPreferences", Context.MODE_PRIVATE);
+
+//        if(service.cmsIsRunning() == true) {
+        if(service != null) {
+            cmServiceToggle.setChecked(service.cmsIsRunning());
+            midiSessionToggle.setChecked(sharedpreferences.getBoolean(Constants.PREF.MIDI_STATE_PREF, false));
+            backgroundToggleButton.setChecked(sharedpreferences.getBoolean(Constants.PREF.BACKGROUND_STATE_PREF, false));
+        }
+//        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        // Deactivate updates to us so that we dont get callbacks no more.
+        service.unregisterActivity(this);
+
+        // Finally stop the service
+        unbindService(svcConn);
     }
 
     @Override
@@ -197,20 +269,14 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-//    public void startupMIDI() {
-//        Log.d("MIDISession","startupMIDI");
-////        midiSession = MIDISession.getInstance();
-////        midiSession.initMIDI(this,10);
-////        midiSession.startListening();
-//        MIDI2Session.getInstance().start(this);
-//    }
+    public void bindToCMGRS() {
+        bindService(new Intent(this, ConnectionManagerService.class), svcConn, BIND_AUTO_CREATE);
+    }
 
-//    public void shutdownMIDI() {
-//        midiSession.stopListening();
-//    }
-//    public void shutdownMIDI() {
-//        MIDI2Session.getInstance().stop();
-//    }
+    public void unbindFromCMGRS() {
+        service.unregisterActivity(this);
+        unbindService(svcConn);
+    }
 
 
     public void sendTestMIDI() {
@@ -290,6 +356,17 @@ public class MainActivity extends AppCompatActivity {
         Log.d("MainActivity","MIDISyncronizationStartEvent");
         midiConnectionStatusTextView.setText("sync start");
     }
+
+    private IListenerFunctions listener = new IListenerFunctions() {
+        public void midiStateChanged(ConnectionState state) {
+            Log.d("MAIN","midistatechanged "+state.toString());
+        }
+
+        public void cmsStarted() {
+            Log.d("MAIN","cms started ");
+        }
+    };
+
 }
 
 

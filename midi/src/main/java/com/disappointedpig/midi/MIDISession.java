@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.disappointedpig.midi.events.MIDIAddressBookEvent;
 import com.disappointedpig.midi.events.MIDIConnectionEndEvent;
 import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
 import com.disappointedpig.midi.events.MIDIReceivedEvent;
@@ -32,6 +33,7 @@ import net.rehacktive.waspdb.WaspDb;
 import net.rehacktive.waspdb.WaspFactory;
 import net.rehacktive.waspdb.WaspHash;
 import net.rehacktive.waspdb.WaspListener;
+import net.rehacktive.waspdb.WaspObserver;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -62,6 +64,7 @@ public class MIDISession {
 
     private WaspDb db;
     private WaspHash midiAddressBook;
+    private WaspObserver observer;
 
     private MIDISession() {
         this.rate = 10000;
@@ -119,7 +122,7 @@ public class MIDISession {
             registered_eb = true;
 //            Hawk.init(context).build();
             setupWaspDB();
-
+            dumpAddressBook();
         }
     }
 
@@ -690,7 +693,7 @@ public class MIDISession {
         return abe.rinfo();
     }
 
-    private boolean addToAddressBook(Bundle rinfo) {
+    public boolean addToAddressBook(Bundle rinfo) {
         String key = rinfoToKey(rinfo);
         Log.d(TAG,"addToAddressBook : "+key+" "+rinfo.toString());
         if(!rinfo.getBoolean(RINFO_RECON, false)) {
@@ -698,29 +701,55 @@ public class MIDISession {
             // iterate over keySet - honestly, I don't know why I'm bothering to do this
             rinfo.putBoolean(RINFO_RECON,false);
         }
-        return midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
+        boolean status = midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
+        if(status) {
+            EventBus.getDefault().post(new MIDIAddressBookEvent());
+        }
+
+        Log.d(TAG,"about to dump ab");
+        dumpAddressBook();
+//        getAllAddressBook();
+        return status;
     }
 
     private String rinfoToKey(Bundle rinfo) {
         return String.format(Locale.ENGLISH,"%1$s:%2$d",rinfo.getString(RINFO_ADDR),rinfo.getInt(RINFO_PORT,1234));
     }
 
-    public ArrayList<Bundle> getAllAddressBook() {
+    public ArrayList<MIDIAddressBookEntry> getAllAddressBook() {
+        Log.d(TAG,"getAllAddressBook");
+        if(midiAddressBook != null) {
+            HashMap<String, MIDIAddressBookEntry> hm = midiAddressBook.getAllData();
+            Log.d(TAG,"value count: "+hm.values().size());
+            Collection<MIDIAddressBookEntry> values = hm.values();
+            ArrayList<MIDIAddressBookEntry> list = new ArrayList<MIDIAddressBookEntry>(values);
 
-        HashMap<String,Bundle> hm = midiAddressBook.getAllData();
-        Collection<Bundle> values = hm.values();
-        ArrayList<Bundle> list = new ArrayList<Bundle>(values);
-
-        return list;
+            return list;
+        }
+        return null;
     }
 
-    // whenever a connect is called, check addressbook to see if we need to
-    // add RECON:true
-    private void checkAddressBookForReconnect(Bundle rinfo) {
-        Bundle abentry = getEntryFromAddressBook(rinfoToKey(rinfo));
-        if(abentry != null) {
-            Log.d(TAG,"checkAddressBookForReconnect : ");
-            rinfo.putBoolean(RINFO_RECON,abentry.getBoolean(RINFO_RECON,false));
+//    // whenever a connect is called, check addressbook to see if we need to
+//    // add RECON:true
+//    private void checkAddressBookForReconnect(Bundle rinfo) {
+//        Bundle abentry = getEntryFromAddressBook(rinfoToKey(rinfo));
+//        if(abentry != null) {
+//            Log.d(TAG,"checkAddressBookForReconnect : ");
+//            rinfo.putBoolean(RINFO_RECON,abentry.getBoolean(RINFO_RECON,false));
+//        }
+//    }
+
+    private void dumpAddressBook() {
+        if(midiAddressBook != null) {
+            HashMap<String, MIDIAddressBookEntry> hm = midiAddressBook.getAllData();
+            Log.d(TAG, "-----------------------------------------");
+            for (String key : hm.keySet()) {
+                Log.d(TAG, " (" + key + ") : " + hm.get(key).getAddressPort());
+            }
+            Log.d(TAG, "-----------------------------------------");
+        } else {
+            Log.d(TAG, "-----------------MIDI Address Book null-------------");
+
         }
     }
 }
