@@ -27,7 +27,7 @@ public class MIDIAddressBookEntry {
     public Bundle rinfo() {
         Bundle rinfo = new Bundle();
         rinfo.putString(RINFO_NAME,name);
-        rinfo.putString(RINFO_NAME,address);
+        rinfo.putString(RINFO_ADDR,address);
         rinfo.putInt(RINFO_PORT,port);
         rinfo.putBoolean(RINFO_RECON,reconnect);
         return rinfo;

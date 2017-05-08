@@ -699,10 +699,12 @@ public class MIDISession {
         if(!rinfo.getBoolean(RINFO_RECON, false)) {
             // reinforce false (in case RECON isn't in bundle) - I guess I could
             // iterate over keySet - honestly, I don't know why I'm bothering to do this
+            Log.d(TAG,"reinforce false?");
             rinfo.putBoolean(RINFO_RECON,false);
         }
         boolean status = midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
         if(status) {
+            Log.d(TAG,"status is good");
             EventBus.getDefault().post(new MIDIAddressBookEvent());
         }
 
@@ -716,6 +718,12 @@ public class MIDISession {
         return String.format(Locale.ENGLISH,"%1$s:%2$d",rinfo.getString(RINFO_ADDR),rinfo.getInt(RINFO_PORT,1234));
     }
 
+    public boolean addToAddressBook(MIDIAddressBookEntry m) {
+        if (midiAddressBook != null) {
+            return midiAddressBook.put(rinfoToKey(m.rinfo()),new MIDIAddressBookEntry(m.rinfo()));
+        }
+        return false;
+    }
     public ArrayList<MIDIAddressBookEntry> getAllAddressBook() {
         Log.d(TAG,"getAllAddressBook");
         if(midiAddressBook != null) {
