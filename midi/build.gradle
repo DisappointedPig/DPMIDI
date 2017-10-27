@@ -2,12 +2,12 @@ apply plugin: 'com.android.library'
 apply from: '../versioning.gradle'
 
 android {
-    compileSdkVersion 25
-    buildToolsVersion "25.0.2"
+    compileSdkVersion 26
+    buildToolsVersion "26.0.2"
 
     defaultConfig {
         minSdkVersion 14
-        targetSdkVersion 25
+        targetSdkVersion 26
         versionCode buildVersionCode()
         versionName version
     }
@@ -17,7 +17,7 @@ android {
 //            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 //        }
         release {
-            shrinkResources true
+            shrinkResources false
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 //            signingConfig signingConfigs.config
@@ -43,9 +43,16 @@ android.libraryVariants.all {
     variant ->
         variant.outputs.each {
             output ->
-                output.outputFile = new File(
-                        output.outputFile.parent,
-                        output.outputFile.name.replace(".aar", "-${android.defaultConfig.versionName}.aar")
-                )
+                def outputFile = output.outputFile
+                if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                    def fileName = outputFile.name.replace(".aar", "-${android.defaultConfig.versionName}.aar")
+//                    ("app", "${defaultConfig.applicationId}_${defaultConfig.versionName}_${releaseTime()}")
+                    outputFileName = fileName
+
+//                output.outputFile = new File(
+//                        output.outputFile.parent,
+//                        output.outputFile.name.replace(".aar", "-${android.defaultConfig.versionName}.aar")
+//                )
+                }
         }
 }
