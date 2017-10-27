@@ -39,20 +39,9 @@ dependencies {
 
 }
 
-android.libraryVariants.all {
-    variant ->
-        variant.outputs.each {
-            output ->
-                def outputFile = output.outputFile
-                if (outputFile != null && outputFile.name.endsWith('.apk')) {
-                    def fileName = outputFile.name.replace(".aar", "-${android.defaultConfig.versionName}.aar")
-//                    ("app", "${defaultConfig.applicationId}_${defaultConfig.versionName}_${releaseTime()}")
-                    outputFileName = fileName
 
-//                output.outputFile = new File(
-//                        output.outputFile.parent,
-//                        output.outputFile.name.replace(".aar", "-${android.defaultConfig.versionName}.aar")
-//                )
-                }
-        }
+android.libraryVariants.all { variant ->
+    variant.outputs.all {
+        outputFileName = "midi-${variant.name}-${android.defaultConfig.versionName}.aar"
+    }
 }
