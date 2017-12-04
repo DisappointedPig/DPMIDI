@@ -1,7 +1,16 @@
 package com.disappointedpig.midi;
 
 import android.annotation.TargetApi;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.DhcpInfo;
+import android.net.LinkAddress;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.NetworkInfo;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
@@ -28,6 +37,7 @@ import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
 import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStartedEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStoppedEvent;
+import com.disappointedpig.midi.utility.WifiReceiver;
 
 import net.rehacktive.waspdb.WaspDb;
 import net.rehacktive.waspdb.WaspFactory;
@@ -41,10 +51,15 @@ import org.greenrobot.eventbus.ThreadMode;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Random;
 
@@ -56,15 +71,17 @@ import static com.disappointedpig.midi.MIDIConstants.RINFO_RECON;
 public class MIDISession {
 
     private static MIDISession midiSessionInstance;
-    private static String TAG = "MIDISession";
+    private static String TAG = MIDISession.class.getSimpleName()
+            ;
     private static String BONJOUR_TYPE = "_apple-midi._udp";
     private static String BONJOUR_SEPARATOR = ".";
-
-    private static boolean DEBUG = false;
+    private static boolean DEBUG = true;
 
     private WaspDb db;
     private WaspHash midiAddressBook;
     private WaspObserver observer;
+
+
 
     private MIDISession() {
         this.rate = 10000;
@@ -85,6 +102,7 @@ public class MIDISession {
         return midiSessionInstance;
     }
 
+    private Boolean shouldBeRunning = false;
     private Boolean isRunning = false;
     private Context appContext = null;
     private SparseArray<MIDIStream> streams;
@@ -92,13 +110,18 @@ public class MIDISession {
 
     public String bonjourName = Build.MODEL;
     public InetAddress bonjourHost = null;
+    public InetAddress netmask = null;
+
     public int bonjourPort = 0;
 
     public int port;
     public int ssrc;
     private int readyState;
-    private Boolean registered_eb;
-    private Boolean published_bonjour;
+    private Boolean registered_eb = false;
+    private Boolean published_bonjour = false;
+    private Boolean initialized = false;
+    private Boolean started = false;
+
     private int lastMessageTime;
     private int rate;
     private final long startTime;
@@ -116,13 +139,18 @@ public class MIDISession {
     private boolean autoReconnect = false;
 
     public void init(Context context) {
+        if(started) {
+            return;
+        }
         this.appContext = context;
         if(!registered_eb) {
             EventBus.getDefault().register(this);
             registered_eb = true;
-//            Hawk.init(context).build();
+        }
+        if(!initialized) {
             setupWaspDB();
             dumpAddressBook();
+            initialized = true;
         }
     }
 
@@ -132,7 +160,14 @@ public class MIDISession {
     }
 
     public void start() {
+        setupNetworkListener();
+        if(!isOnline()) {
+            Log.d(TAG,"MIDI Start : not online");
+            shouldBeRunning = true;
+            return;
+        }
         if(this.appContext == null) {
+            Log.d(TAG,"MIDI Start : ctx is null");
             return;
         }
         if(!registered_eb) {
@@ -144,7 +179,12 @@ public class MIDISession {
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        this.bonjourHost = getWifiAddress();
+//        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP) {
+//
+//            this.bonjourHost = getWifiAddressNew();
+//        } else {
+            this.bonjourHost = getWifiAddress();
+//        }
         this.bonjourPort = this.port;
         controlChannel = MIDIPort.newUsing(this.port);
         controlChannel.start();
@@ -157,7 +197,10 @@ public class MIDISession {
             initializeResolveListener();
             registerService();
             isRunning = true;
+            shouldBeRunning = false;
+
             EventBus.getDefault().post(new MIDISessionStartEvent());
+            checkAddressBookForReconnect();
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
@@ -183,7 +226,7 @@ public class MIDISession {
             messageChannel.stop();
         }
         isRunning = false;
-
+        removeNetworkListener();
         shutdownNSDListener();
         EventBus.getDefault().post(new MIDISessionStopEvent());
 
@@ -192,6 +235,7 @@ public class MIDISession {
 
     public void finalize() {
         stop();
+        registered_eb = false;
         EventBus.getDefault().unregister(this);
         try {
             super.finalize();
@@ -398,7 +442,9 @@ public class MIDISession {
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onConnectionEstablishedEvent(ConnectionEstablishedEvent e) {
-        Log.d("MIDISession","ConnectionEstablishedEvent");
+        if(DEBUG) {
+            Log.d("MIDISession", "ConnectionEstablishedEvent");
+        }
         EventBus.getDefault().post(new MIDIConnectionEstablishedEvent(e.rinfo));
         addToAddressBook(e.rinfo);
 
@@ -413,14 +459,18 @@ public class MIDISession {
         MIDIMessage message = new MIDIMessage();
 
         if(applecontrol.parse(e)) {
-//            Log.d("MIDISession","- parsed as apple control packet");
+            if(DEBUG) {
+                Log.d("MIDISession", "- parsed as apple control packet");
+            }
             if(applecontrol.isValid()) {
 //                applecontrol.dumppacket();
 
                 if(applecontrol.initiator_token != 0) {
                     MIDIStream pending = pendingStreams.get(applecontrol.initiator_token);
                     if (pending != null) {
-                        Log.d("MIDISession", " - got pending stream by token");
+                        if(DEBUG) {
+                            Log.d("MIDISession", " - got pending stream by token");
+                        }
                         pending.handleControlMessage(applecontrol, e.getRInfo());
                         return;
                     }
@@ -431,14 +481,20 @@ public class MIDISession {
                 if(stream == null) {
                     // else, check if this is an invitation
                     //       create stream and tell stream to handle invite
-//                    Log.d("MIDISession","- create new stream");
+                    if(DEBUG) {
+                        Log.d("MIDISession", "- create new stream "+applecontrol.ssrc);
+                    }
                     stream = new MIDIStream();
                     streams.put(applecontrol.ssrc, stream);
                 } else {
-//                    Log.d("MIDISession", " - got existing stream by ssrc");
+                    if(DEBUG) {
+                        Log.d("MIDISession", " - got existing stream by ssrc " + applecontrol.ssrc);
+                    }
 
                 }
-//                Log.d("MIDISession","- pass control packet to stream");
+                if(DEBUG) {
+                    Log.d("MIDISession", "- pass control packet to stream");
+                }
 
                 stream.handleControlMessage(applecontrol, e.getRInfo());
             }
@@ -454,9 +510,9 @@ public class MIDISession {
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onStreamDisconnectEvent(StreamDisconnectEvent e) {
-//        if(DEBUG) {
-//            Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
-//        }
+        if(DEBUG) {
+            Log.d(TAG,"onStreamDisconnectEvent - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
+        }
         MIDIStream a = streams.get(e.stream_ssrc,null);
 
         if(a == null) {
@@ -465,10 +521,14 @@ public class MIDISession {
             Bundle rinfo = (Bundle) a.getRinfo1().clone();
             a.shutdown();
             streams.delete(e.stream_ssrc);
+            checkAddressBookForReconnect();
 
-            if(rinfo.getBoolean(MIDIConstants.RINFO_RECON,false)) {
-                connect(rinfo);
-            }
+//            if(rinfo.getBoolean(MIDIConstants.RINFO_RECON,false)) {
+//                Log.d(TAG,"will try reconnect to "+rinfo.getString(RINFO_ADDR));
+//                connect(rinfo);
+//            } else {
+//                Log.d(TAG,"will not reconnect to "+rinfo.getString(RINFO_ADDR));
+//            }
 //            if(autoReconnect) {
 //                connect(rinfo);
 //            }
@@ -485,6 +545,10 @@ public class MIDISession {
         if(e.rinfo != null) {
             EventBus.getDefault().post(new MIDIConnectionEndEvent((Bundle)e.rinfo.clone()));
         }
+
+        if(DEBUG) {
+            Log.d(TAG,"                     - ssrc:"+e.stream_ssrc+" it:"+e.initiator_token+" #streams:"+streams.size()+" #pendstreams:"+pendingStreams.size());
+        }
     }
 
     @Subscribe
@@ -492,8 +556,22 @@ public class MIDISession {
         Log.d(TAG,"onConnectionFailedEvent");
         switch(e.code) {
             case REJECTED_INVITATION:
-                Log.d(TAG,"initiator_code "+e.initiator_code);
+                Log.d(TAG,"REJECTED_INVITATION initiator_code "+e.initiator_code);
                 pendingStreams.delete(e.initiator_code);
+                checkAddressBookForReconnect();
+                break;
+            case SYNC_FAILURE:
+                Log.d(TAG,"SYNC_FAILURE initiator_code "+e.initiator_code);
+                pendingStreams.delete(e.initiator_code);
+                break;
+            case UNABLE_TO_CONNECT:
+                Log.d(TAG,"UNABLE_TO_CONNECT initiator_code "+e.initiator_code);
+                pendingStreams.delete(e.initiator_code);
+                break;
+            case CONNECTION_LOST:
+                Log.d(TAG,"CONNECTION_LOST initiator_code "+e.initiator_code);
+                pendingStreams.delete(e.initiator_code);
+                checkAddressBookForReconnect();
                 break;
             default:
                 break;
@@ -501,21 +579,190 @@ public class MIDISession {
         }
     }
 
+//    @TargetApi(21)
+//    public InetAddress getWifiAddressNew() {
+//
+//
+//        InetAddress a = null;
+//        WifiManager wm = (WifiManager) appContext.getSystemService(WIFI_SERVICE);
+//        Network network = wm.getCurrentNetwork();
+//        ConnectivityManager cm = (ConnectivityManager)
+//                appContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+//        NetworkInfo networkInfo = cm.getActiveNetworkInfo();
+//
+//
+//        if(networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
+//            Network network = cm.getActiveNetwork();
+//            LinkProperties prop = cm.getLinkProperties();
+//
+//        }
+//        //        LinkProperties prop = cm.getLinkProperties(wifiInfo);
+//
+//        Iterator<InetAddress> dns = prop.getDnsServers().iterator();
+//        while (dns.hasNext()) {
+//            Log.d(TAG,"DNS: "+dns.next().getHostAddress());
+//        }
+//
+//        Log.d(TAG,"DNS: "+prop.getDnsServers());
+//        Log.d(TAG,"domains: "+prop.getDomains());
+//        Log.d(TAG,"imterface: "+prop.getInterfaceName());
+//        Log.d(TAG,"string: "+prop.toString());
+//        Log.d(TAG,"mask: "+prop.);
+//
+//        Iterator<LinkAddress> iter = prop.getLinkAddresses().iterator();
+//        while(iter.hasNext()) {
+//            a = iter.next().getAddress();
+//            Log.d(TAG,"address: "+a.getHostAddress());
+//        }
+//        return a;
+//
+//    }
+
     public InetAddress getWifiAddress() {
         try {
             if(appContext == null) {
                 return InetAddress.getByName("127.0.0.1");
             }
+            DhcpInfo dhcpInfo;
             WifiManager wm = (WifiManager) appContext.getSystemService(WIFI_SERVICE);
+
+            dhcpInfo=wm.getDhcpInfo();
+
+            Log.d(TAG,"DNS 1: "+intToIp(dhcpInfo.dns1));
+            Log.d(TAG,"DNS 2: "+intToIp(dhcpInfo.dns2));
+            Log.d(TAG,"Gateway: "+intToIp(dhcpInfo.gateway));
+            Log.d(TAG,"ip Address: "+intToIp(dhcpInfo.ipAddress));
+            Log.d(TAG,"lease time: "+intToIp(dhcpInfo.leaseDuration));
+            Log.d(TAG,"mask: "+dhcpInfo.netmask);
+
+            Log.d(TAG,"server ip: "+intToIp(dhcpInfo.serverAddress));
+
+
+//
+//            vIpAddress="IP Address: "+intToIp(dhcpInfo.ipAddress);
+//            vLeaseDuration="Lease Time: "+String.valueOf(dhcpInfo.leaseDuration);
+//            vNetmask="Subnet Mask: "+intToIp(dhcpInfo.netmask);
+//            vServerAddress="Server IP: "+intToIp(dhcpInfo.serverAddress);
+
+
             byte[] ipbytearray= BigInteger.valueOf(wm.getConnectionInfo().getIpAddress()).toByteArray();
             reverseByteArray(ipbytearray);
             if(ipbytearray.length != 4) {
                 return InetAddress.getByName("127.0.0.1");
             }
+
+            Enumeration<NetworkInterface> nis = NetworkInterface.getNetworkInterfaces();
+            while(nis.hasMoreElements()) {
+                NetworkInterface ni = nis.nextElement();
+                Iterator<InterfaceAddress> intAs = ni.getInterfaceAddresses().iterator();
+                while(intAs.hasNext()) {
+                    InterfaceAddress ia = intAs.next();
+                    Log.d(TAG," ia: "+ia.getAddress().getHostAddress());
+                    if(sameIP(ia.getAddress(),InetAddress.getByAddress(ipbytearray))) {
+                        Log.d(TAG, "same!!! " + ia.getAddress().getHostAddress() + "/" + ia.getNetworkPrefixLength());
+                        Log.d(TAG, "netmask: "+ intToIp(prefixLengthToNetmaskInt(ia.getNetworkPrefixLength())));
+                        netmask = InetAddress.getByName(intToIp(prefixLengthToNetmaskInt(ia.getNetworkPrefixLength())));
+                    }
+                }
+
+//                Enumeration<InetAddress> inetAs = ni.getInetAddresses();
+//                while(inetAs.hasMoreElements()) {
+//                    InetAddress addr = inetAs.nextElement();
+//                    Log.d(TAG, " ia: "+addr.getHostAddress());
+//                    if(sameIP(addr,InetAddress.getByAddress(ipbytearray))) {
+//                        Log.d(TAG,"same!!! "+ni.getDisplayName() + "  "+ni.toString());
+//
+//                    }
+//                }
+
+            }
+
+//            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(InetAddress.getByAddress(ipbytearray));
+//            for (InterfaceAddress address : networkInterface.getInterfaceAddresses()) {
+//
+//                    networkInterface.isLoopback()
+//                    Log.d(TAG, "network prefix: " + address.getNetworkPrefixLength());
+//            }
+
+//            if(ipbytearray != null && ipbytearray.length > 0) {
+//                Log.d(TAG, "new netmask: " + intToIp(prefixLengthToNetmaskInt(getNetmask(InetAddress.getByAddress(ipbytearray)))));
+//            }
+
             return InetAddress.getByAddress(ipbytearray);
         } catch (UnknownHostException e) {
             return null;
+        } catch (SocketException e) {
+            e.printStackTrace();
+            return null;
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+            return null;
         }
+    }
+
+//    public String getLocalIpAddress() {
+//        try {
+//            for (Enumeration<NetworkInterface> en = NetworkInterface
+//                    .getNetworkInterfaces(); en.hasMoreElements();) {
+//                NetworkInterface intf = en.nextElement();
+//                for (Enumeration<InetAddress> enumIpAddr = intf
+//                        .getInetAddresses(); enumIpAddr.hasMoreElements();) {
+//                    InetAddress inetAddress = enumIpAddr.nextElement();
+//                    System.out.println("ip1--:" + inetAddress);
+//                    System.out.println("ip2--:" + inetAddress.getHostAddress());
+//
+//                    // for getting IPV4 format
+//                    if (!inetAddress.isLoopbackAddress() && InetAddressUtils.isIPv4Address(ipv4 = inetAddress.getHostAddress())) {
+//
+//                        String ip = inetAddress.getHostAddress().toString();
+//                        System.out.println("ip---::" + ip);
+////                        EditText tv = (EditText) findViewById(R.id.ipadd);
+////                        tv.setText(ip);
+//                        // return inetAddress.getHostAddress().toString();
+//                        return ip;
+//                    }
+//                }
+//            }
+//        } catch (Exception ex) {
+//            Log.e("IP Address", ex.toString());
+//        }
+//        return null;
+//    }
+
+    public int prefixLengthToNetmaskInt(int prefixLength)
+            throws IllegalArgumentException {
+        Log.d(TAG,"prefixLengthToNetmaskInt:"+prefixLength);
+        if (prefixLength < 0 || prefixLength > 32) {
+//            throw new IllegalArgumentException("Invalid prefix length (0 <= prefix <= 32)");
+            return 0;
+
+        }
+        int value = 0xffffffff << (32 - prefixLength);
+        return Integer.reverseBytes(value);
+    }
+
+    public int getNetmask(InetAddress addr) {
+        try {
+            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(addr);
+            Log.d(TAG,"    interface: "+addr.getHostAddress());
+            for (InterfaceAddress address : networkInterface.getInterfaceAddresses()) {
+                Log.d(TAG,"    "+address.getAddress().getHostAddress() + "/" +address.getNetworkPrefixLength());
+
+                int netPrefix = address.getNetworkPrefixLength();
+                return netPrefix;
+            }
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public String intToIp(int i) {
+        i = Integer.reverseBytes(i);
+        return ((i >> 24 ) & 0xFF ) + "." +
+                ((i >> 16 ) & 0xFF) + "." +
+                ((i >> 8 ) & 0xFF) + "." +
+                ( i & 0xFF) ;
     }
 
     private static void reverseByteArray(byte[] array) {
@@ -695,23 +942,30 @@ public class MIDISession {
 
     public boolean addToAddressBook(Bundle rinfo) {
         String key = rinfoToKey(rinfo);
+
         Log.d(TAG,"addToAddressBook : "+key+" "+rinfo.toString());
-        if(!rinfo.getBoolean(RINFO_RECON, false)) {
-            // reinforce false (in case RECON isn't in bundle) - I guess I could
-            // iterate over keySet - honestly, I don't know why I'm bothering to do this
-            Log.d(TAG,"reinforce false?");
-            rinfo.putBoolean(RINFO_RECON,false);
-        }
-        boolean status = midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
-        if(status) {
-            Log.d(TAG,"status is good");
-            EventBus.getDefault().post(new MIDIAddressBookEvent());
+//        if(!rinfo.getBoolean(RINFO_RECON, false)) {
+//            // reinforce false (in case RECON isn't in bundle) - I guess I could
+//            // iterate over keySet - honestly, I don't know why I'm bothering to do this
+//            Log.d(TAG,"reinforce false?");
+//            rinfo.putBoolean(RINFO_RECON,false);
+//        }
+        if(midiAddressBook.get(rinfoToKey(rinfo)) == null) {
+            boolean status = midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
+            if(status) {
+                Log.d(TAG,"status is good");
+                EventBus.getDefault().post(new MIDIAddressBookEvent());
+            }
+            return status;
+
+        } else {
+            Log.d(TAG,"already in addressbook");
         }
 
         Log.d(TAG,"about to dump ab");
         dumpAddressBook();
 //        getAllAddressBook();
-        return status;
+        return true;
     }
 
     private String rinfoToKey(Bundle rinfo) {
@@ -724,6 +978,13 @@ public class MIDISession {
         }
         return false;
     }
+
+    public boolean deleteFromAddressBook(MIDIAddressBookEntry m) {
+        return midiAddressBook.remove(rinfoToKey(m.rinfo()));
+
+    }
+
+
     public ArrayList<MIDIAddressBookEntry> getAllAddressBook() {
         Log.d(TAG,"getAllAddressBook");
         if(midiAddressBook != null) {
@@ -760,4 +1021,140 @@ public class MIDISession {
 
         }
     }
+
+    public void checkAddressBookForReconnect() {
+        if(midiAddressBook != null) {
+            HashMap<String, MIDIAddressBookEntry> hm = midiAddressBook.getAllData();
+            Log.d(TAG, "-----------------------------------------");
+            for (String key : hm.keySet()) {
+                MIDIAddressBookEntry e = hm.get(key);
+
+                Log.d(TAG, " checking for reconnect - (" + key + ") : " + e.getAddressPort() + " "+(e.getReconnect() ? "YES" : "NO"));
+                if(e.getReconnect()) {
+                    connect(hm.get(key).rinfo());
+                    if (onSameNetwork(hm.get(key).getAddress())) {
+                        Log.d(TAG, " same network - (" + key + ") : " + hm.get(key).getAddressPort());
+                    } else {
+                        Log.d(TAG, " different network -  (" + key + ") : " + hm.get(key).getAddressPort());
+                    }
+                }
+            }
+            Log.d(TAG, "-----------------------------------------");
+        } else {
+            Log.d(TAG, "-----------------MIDI Address Book null-------------");
+
+        }
+    }
+
+    public boolean onSameNetwork(String ip) {
+        try {
+            byte[] a1 = InetAddress.getByName(ip).getAddress();
+            byte[] a2 = bonjourHost.getAddress();
+            byte[] m = netmask.getAddress();
+            for (int i = 0; i < a1.length; i++)
+                if ((a1[i] & m[i]) != (a2[i] & m[i]))
+                    return false;
+
+            return true;
+        } catch (UnknownHostException e) {
+            return false;
+        }
+    }
+
+
+
+//    public static boolean sameNetwork(String ip1, String ip2, String mask)
+//            throws Exception {
+//
+//        byte[] a1 = InetAddress.getByName(ip1).getAddress();
+//        byte[] a2 = InetAddress.getByName(ip2).getAddress();
+//        byte[] m = InetAddress.getByName(mask).getAddress();
+//
+//        for (int i = 0; i < a1.length; i++)
+//            if ((a1[i] & m[i]) != (a2[i] & m[i]))
+//                return false;
+//
+//        return true;
+//
+//    }
+
+    public boolean sameIP(InetAddress a1, InetAddress a2) {
+        byte[] b1 = a1.getAddress();
+        byte[] b2 = a2.getAddress();
+        for (int i = 0; i < b1.length; i++)
+            if (b1[i] != b2[i])
+                return false;
+
+        return true;
+    }
+
+    private BroadcastReceiver wifiReceiver;
+    private boolean networkListenerRegistered = false;
+
+    public void setupNetworkListener() {
+
+//        if(this.wifiReceiver != null) {
+//            removeNetworkListener();
+//        }
+        if(networkListenerRegistered) {
+            removeNetworkListener();
+        }
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        this.wifiReceiver = new BroadcastReceiver() {
+
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                // Do whatever you need it to do when it receives the broadcast
+                // Example show a Toast message...
+//                showSuccessfulBroadcast();
+                Log.d(TAG, "wifiReceiver - "+intent.getAction());
+//                checkAddressBookForReconnect();
+                if(isOnline()) {
+                    Log.d(TAG,"network is online");
+                    if(shouldBeRunning && !isRunning) {
+                        start();
+                    }
+                } else {
+                    Log.d(TAG,"network not online");
+                    if(isRunning) {
+                        shouldBeRunning = true;
+                        stop();
+                    }
+//                    shouldBeRunning = true;
+//                    stop();
+//
+                }
+
+            }
+        };
+
+        if(appContext != null) {
+            appContext.registerReceiver(this.wifiReceiver, intentFilter);
+        }
+        networkListenerRegistered = true;
+    }
+
+    public void removeNetworkListener() {
+        if(appContext != null && wifiReceiver != null) {
+            try {
+                appContext.unregisterReceiver(wifiReceiver);
+                networkListenerRegistered = false;
+
+            } catch (IllegalArgumentException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public boolean isOnline() {
+        ConnectivityManager cm =
+                (ConnectivityManager) appContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        Log.d(TAG,"isOnline? "+((cm.getActiveNetworkInfo() != null &&
+                cm.getActiveNetworkInfo().isConnectedOrConnecting()) ? "ON" : "OFF"));
+        return cm.getActiveNetworkInfo() != null &&
+                cm.getActiveNetworkInfo().isConnectedOrConnecting();
+    }
+
 }

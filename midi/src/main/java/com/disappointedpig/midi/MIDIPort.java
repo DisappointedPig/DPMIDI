@@ -82,6 +82,7 @@ class MIDIPort implements Runnable {
             throwable.printStackTrace();
         }
     }
+
     @Override
     public void run() {
         while(isListening) {
@@ -144,69 +145,29 @@ class MIDIPort implements Runnable {
 
     void stop() {
         isListening = false;
-
     }
 
     private void handleRead(SelectionKey key) {
 //        Log.d("MIDIPort2","handleRead");
-//        final byte[] buffer = new byte[BUFFER_SIZE];
-//        final DatagramPacket packet = new DatagramPacket(buffer, fBUFFER_SIZE);
         DatagramChannel c = (DatagramChannel) key.channel();
-//        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
         UDPBuffer b = (UDPBuffer) key.attachment();
         try {
-//            channel.socket().receive(packet);
-//            UDPBuffer b = new UDPBuffer();
-
             b.buffer.clear();
-//            SocketAddress clientAddress = c.receive(buffer);
             b.socketAddress = c.receive(b.buffer);
-//            Log.d("READ","buffer pos "+buffer.position());
-//            DatagramPacket packet = new DatagramPacket(buffer.array(),buffer.capacity(),clientAddress);
-//            DatagramPacket packet = new DatagramPacket(b.buffer.array(),b.buffer.capacity(),b.socketAddress);
-//                String output = "";
-//                for(byte a:packet.getData()) {
-//                    output += (String.format("%02x", a) + " ");
-//                }
-//                Log.d("READ"," "+output);
-//            EventBus.getDefault().post(new PacketEvent(packet));
             EventBus.getDefault().post(new PacketEvent(new DatagramPacket(b.buffer.array(),b.buffer.capacity(),b.socketAddress)));
-
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-//        if (buf.clientAddress != null) {  // Did we receive something?
-//            // Register write with the selector
-//            key.interestOps(SelectionKey.OP_WRITE);
-//        }
-
-
     }
 
     private void handleWrite(SelectionKey key) {
         if(!outboundQueue.isEmpty()) {
 //            Log.d("MIDIPort2","handleWrite "+ outboundQueue.size());
             try {
-//                ByteBuffer buffer = (ByteBuffer) key.attachment();
                 DatagramChannel c = (DatagramChannel) key.channel();
                 DatagramPacket d = outboundQueue.poll();
 
-//                byte[] r = d.getData();
                 c.send(ByteBuffer.wrap(d.getData()),d.getSocketAddress());
-//                String output = "";
-//                for(byte a:r) {
-//                    output += (String.format("%02x", a) + " ");
-//                }
-//                Log.d("PACK"," "+output);
-//                buffer = ByteBuffer.wrap(r);
-//                output = "";
-//                for(byte a:buffer.array()) {
-//                    output += (String.format("%02x", a) + " ");
-//                }
-//                Log.d("WRIT"," "+output);
-//                c.send(buffer,d.getSocketAddress());
-
             } catch (IOException e) {
                 e.printStackTrace();
             }

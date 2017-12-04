@@ -26,7 +26,12 @@
         <service
             android:name=".ConnectionManagerService"
             android:enabled="true"
-            android:exported="true"></service>
+            android:exported="true" />
+
+        <activity
+            android:name=".AddressBook"
+            android:label="@string/title_activity_address_book"
+            android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 
 </manifest>

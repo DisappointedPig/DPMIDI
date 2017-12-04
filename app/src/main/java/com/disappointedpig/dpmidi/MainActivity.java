@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
     ToggleButton midiSessionToggle, cmServiceToggle, backgroundToggleButton, reconnectToggleButton;
     TextView midiStatusTextView;
 
-    Button midiInviteButton, midiEndConnectionButton;
+    Button midiInviteButton, midiEndConnectionButton, openABButton;
 
     TextView midiConnectionStatusTextView;
 
@@ -93,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
         EventBus.getDefault().register(this);
+        MIDISession.getInstance().init(DPMIDIApplication.getAppContext());
 
         //start cms
         Intent startIntent = new Intent(MainActivity.this, ConnectionManagerService.class);
@@ -186,7 +187,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString(MIDIConstants.RINFO_ADDR,"172.16.1.23");
+                rinfo.putString(MIDIConstants.RINFO_ADDR,"10.209.1.227");
                 rinfo.putInt(MIDIConstants.RINFO_PORT,5004);
                 rinfo.putBoolean(MIDIConstants.RINFO_RECON, useReconnect);
                 MIDISession.getInstance().connect(rinfo);
@@ -197,7 +198,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString(MIDIConstants.RINFO_ADDR,"172.16.1.23");
+                rinfo.putString(MIDIConstants.RINFO_ADDR,"10.209.1.227");
                 rinfo.putInt(MIDIConstants.RINFO_PORT,5004);
                 rinfo.putBoolean(MIDIConstants.RINFO_RECON, useReconnect);
                 MIDISession.getInstance().disconnect(rinfo);
@@ -212,6 +213,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        openABButton = findViewById(R.id.openABButton);
+        openABButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                Intent intent = new Intent(MainActivity.this, AddressBook.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivityForResult(intent, 1);
+            }
+        });
         SharedPreferences sharedpreferences = DPMIDIApplication.getAppContext().getSharedPreferences("SCPreferences", Context.MODE_PRIVATE);
 
 //        if(service.cmsIsRunning() == true) {

@@ -263,6 +263,10 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
         MIDIState = state;
     }
 
+    public void setupMIDI() {
+
+    }
+
     public void startMIDI() {
 
         setMIDIState(ConnectionState.STARTING);

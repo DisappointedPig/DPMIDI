@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:bind="http://schemas.android.com/tools">
+
+    <data>
+        <variable
+            name="model"
+            type="com.disappointedpig.dpmidi.AddressBookModel" />
+
+    </data>
+
+    <com.chauthai.swipereveallayout.SwipeRevealLayout
+        android:id="@+id/swipe_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:dragEdge="right"
+        app:mode="same_level">
+
+        <FrameLayout
+            android:id="@+id/delete_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="60dp"
+            android:background="#ffcc0000">
+            <TextView
+                android:layout_width="70dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:background="@android:color/holo_red_dark"
+                android:textColor="@android:color/white"
+                android:onClick="@{model::onClickDelete}"
+                android:text="Delete"/>
+        </FrameLayout>
+
+        <android.support.constraint.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:onClick="@{model::onClickEntry}"
+            >
+
+            <TextView
+                android:id="@+id/address_book_name"
+                android:layout_width="0dp"
+                android:layout_height="30dp"
+                android:gravity="center_vertical"
+                android:text="@{model.getName()}"
+                android:textColor="@color/colorPrimaryDark"
+                android:textStyle="normal|bold"
+                app:layout_constraintLeft_toLeftOf="parent"
+                android:layout_marginLeft="8dp"
+                android:layout_marginRight="100dp"
+                app:layout_constraintRight_toRightOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                android:layout_marginTop="0dp"
+                app:layout_constraintHorizontal_bias="0.0" />
+
+            <TextView
+                android:id="@+id/address_book_address_port"
+                android:layout_width="0dp"
+                android:layout_height="30dp"
+                android:layout_marginLeft="8dp"
+                android:layout_marginRight="100dp"
+                android:layout_marginTop="0dp"
+                android:gravity="center_vertical"
+                android:text="@{model.getAddressPort()}"
+                android:textColor="@color/colorPrimaryDark"
+                android:textStyle="normal|bold"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintRight_toRightOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/address_book_name" />
+
+            <Switch
+                android:layout_width="wrap_content"
+                android:layout_height="60dp"
+                android:layout_marginRight="30dp"
+                android:checked="@{model.reconnect}"
+                android:onCheckedChanged="@{(switch, checked) -> model.onCheckedChanged(checked)}"
+                app:layout_constraintTop_toTopOf="parent"
+
+                app:layout_constraintRight_toRightOf="parent"
+                />
+        </android.support.constraint.ConstraintLayout>
+
+    </com.chauthai.swipereveallayout.SwipeRevealLayout>
+</layout>
