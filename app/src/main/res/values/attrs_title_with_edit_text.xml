@@ -1,0 +1,7 @@
+<resources>
+    <declare-styleable name="TitleWithEditText">
+        <attr name="titleWithEdit_Title_ResId" format="integer" />
+        <attr name="titleWithEdit_Hint_ResId" format="integer" />
+        <attr name="titleWithEdit_Type_ResId" format="integer" />
+    </declare-styleable>
+</resources>

@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.app.AppCompatDialogFragment;
 import android.support.v7.widget.DefaultItemAnimator;
 import android.support.v7.widget.DividerItemDecoration;
 import android.support.v7.widget.Toolbar;
@@ -19,7 +20,9 @@ import org.greenrobot.eventbus.Subscribe;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AddressBook extends AppCompatActivity {
+import static com.disappointedpig.dpmidi.Constants.AB_DIALOG_FRAGMENT_KEY;
+
+public class AddressBook extends AppCompatActivity implements AddressBookDialog.AddressBookDialogListener {
 
     private final String TAG = AddressBook.class.getSimpleName();
 
@@ -40,8 +43,10 @@ public class AddressBook extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+//                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
+//                        .setAction("Action", null).show();
+                AddressBookDialog abdialog = new AddressBookDialog();
+                abdialog.show(getSupportFragmentManager(), AB_DIALOG_FRAGMENT_KEY);
             }
         });
         MIDISession.getInstance().checkAddressBookForReconnect();
@@ -65,10 +70,11 @@ public class AddressBook extends AppCompatActivity {
 
 //        PatternsDao patternsDao = daoSession.getPatternsDao();
         List<AddressBookModel> l = new ArrayList<>();
-        for(MIDIAddressBookEntry a: MIDISession.getInstance().getAllAddressBook()) {
-            l.add(AddressBookModel.newInstance(a));
+        if(!MIDISession.getInstance().addressBookIsEmpty()) {
+            for (MIDIAddressBookEntry a : MIDISession.getInstance().getAllAddressBook()) {
+                l.add(AddressBookModel.newInstance(a));
+            }
         }
-
         adapter = new GenericRecyclerViewAdapter<AddressBookModel>(l,null);
         mRecyclerView.setAdapter(adapter);
 
@@ -89,5 +95,18 @@ public class AddressBook extends AppCompatActivity {
                 MIDISession.getInstance().deleteFromAddressBook(event.getEntry());
                 initializeRecyclerView(null);
         }
+    }
+
+    @Override
+    public void onAddressBookDialogPositiveClick(AppCompatDialogFragment dialog) {
+        Log.d(TAG,"done...");
+        initializeRecyclerView(null);
+
+    }
+
+    @Override
+    public void onAddressBookDialogNegativeClick(AppCompatDialogFragment dialog) {
+        initializeRecyclerView(null);
+
     }
 }

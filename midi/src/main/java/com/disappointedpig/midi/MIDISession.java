@@ -7,15 +7,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
-import android.net.LinkAddress;
-import android.net.LinkProperties;
-import android.net.Network;
-import android.net.NetworkInfo;
+
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.v4.util.ArrayMap;
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -37,7 +35,6 @@ import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
 import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStartedEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStoppedEvent;
-import com.disappointedpig.midi.utility.WifiReceiver;
 
 import net.rehacktive.waspdb.WaspDb;
 import net.rehacktive.waspdb.WaspFactory;
@@ -65,6 +62,7 @@ import java.util.Random;
 
 import static android.content.Context.WIFI_SERVICE;
 import static com.disappointedpig.midi.MIDIConstants.RINFO_ADDR;
+import static com.disappointedpig.midi.MIDIConstants.RINFO_FAIL;
 import static com.disappointedpig.midi.MIDIConstants.RINFO_PORT;
 import static com.disappointedpig.midi.MIDIConstants.RINFO_RECON;
 
@@ -80,7 +78,6 @@ public class MIDISession {
     private WaspDb db;
     private WaspHash midiAddressBook;
     private WaspObserver observer;
-
 
 
     private MIDISession() {
@@ -107,6 +104,7 @@ public class MIDISession {
     private Context appContext = null;
     private SparseArray<MIDIStream> streams;
     private SparseArray<MIDIStream> pendingStreams;
+    private ArrayMap<String,Bundle> failedConnections;
 
     public String bonjourName = Build.MODEL;
     public InetAddress bonjourHost = null;
@@ -149,7 +147,7 @@ public class MIDISession {
         }
         if(!initialized) {
             setupWaspDB();
-            dumpAddressBook();
+
             initialized = true;
         }
     }
@@ -193,6 +191,7 @@ public class MIDISession {
 
         this.streams = new SparseArray<>(2);
         this.pendingStreams = new SparseArray<>(2);
+        this.failedConnections = new ArrayMap<>(2);
         try {
             initializeResolveListener();
             registerService();
@@ -226,7 +225,6 @@ public class MIDISession {
             messageChannel.stop();
         }
         isRunning = false;
-        removeNetworkListener();
         shutdownNSDListener();
         EventBus.getDefault().post(new MIDISessionStopEvent());
 
@@ -235,6 +233,8 @@ public class MIDISession {
 
     public void finalize() {
         stop();
+        removeNetworkListener();
+
         registered_eb = false;
         EventBus.getDefault().unregister(this);
         try {
@@ -249,7 +249,18 @@ public class MIDISession {
             if(!isAlreadyConnected(rinfo)) {
                 Log.d(TAG,"opening connection to "+rinfo);
                 MIDIStream stream = new MIDIStream();
-                stream.connect(rinfo);
+
+                if(failedConnections.containsKey(rinfoToKey(rinfo)))  {
+                    Bundle reconnectRinfo = failedConnections.get(rinfoToKey(rinfo));
+                    if(reconnectRinfo.getInt(RINFO_FAIL,0) > 3) {
+                        Log.d(TAG,"failed more than 3 times...");
+                        return;
+                    }
+
+                    stream.connect(reconnectRinfo);
+                } else {
+                    stream.connect(rinfo);
+                }
                 Log.d(TAG,"put "+stream.initiator_token+" in pendingStreams");
                 pendingStreams.put(stream.initiator_token, stream);
             } else {
@@ -404,6 +415,11 @@ public class MIDISession {
         return result;
     }
 
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onAddressBookReadyEvent(AddressBookReadyEvent event) {
+        Log.d(TAG,"Addressbook ready");
+        dumpAddressBook();
+    }
 
     // streamConnectedEvent is called when client initiates connection... ...
     @Subscribe(threadMode = ThreadMode.ASYNC)
@@ -556,27 +572,37 @@ public class MIDISession {
         Log.d(TAG,"onConnectionFailedEvent");
         switch(e.code) {
             case REJECTED_INVITATION:
-                Log.d(TAG,"REJECTED_INVITATION initiator_code "+e.initiator_code);
-                pendingStreams.delete(e.initiator_code);
-                checkAddressBookForReconnect();
+                Log.d(TAG,"...REJECTED_INVITATION initiator_code "+e.initiator_code);
                 break;
             case SYNC_FAILURE:
-                Log.d(TAG,"SYNC_FAILURE initiator_code "+e.initiator_code);
-                pendingStreams.delete(e.initiator_code);
+                Log.d(TAG,"...SYNC_FAILURE initiator_code "+e.initiator_code);
                 break;
             case UNABLE_TO_CONNECT:
-                Log.d(TAG,"UNABLE_TO_CONNECT initiator_code "+e.initiator_code);
-                pendingStreams.delete(e.initiator_code);
+                Log.d(TAG,"...UNABLE_TO_CONNECT initiator_code "+e.initiator_code);
                 break;
             case CONNECTION_LOST:
-                Log.d(TAG,"CONNECTION_LOST initiator_code "+e.initiator_code);
-                pendingStreams.delete(e.initiator_code);
-                checkAddressBookForReconnect();
+                Log.d(TAG,"...CONNECTION_LOST initiator_code "+e.initiator_code);
                 break;
             default:
                 break;
 
         }
+        pendingStreams.delete(e.initiator_code);
+
+        String key = rinfoToKey(e.rinfo);
+        if(failedConnections.containsKey(key)) {
+            Bundle r = failedConnections.get(key);
+            int fail = r.getInt(RINFO_FAIL,0);
+            r.putInt(RINFO_FAIL,fail+1);
+            failedConnections.put(key,r);
+            Log.d(TAG," rinfo: "+r.toString());
+        } else {
+            e.rinfo.putInt(RINFO_FAIL,1);
+            failedConnections.put(key, e.rinfo);
+            Log.d(TAG," rinfo: "+e.rinfo.toString());
+
+        }
+        checkAddressBookForReconnect();
     }
 
 //    @TargetApi(21)
@@ -950,6 +976,7 @@ public class MIDISession {
 //            Log.d(TAG,"reinforce false?");
 //            rinfo.putBoolean(RINFO_RECON,false);
 //        }
+
         if(midiAddressBook.get(rinfoToKey(rinfo)) == null) {
             boolean status = midiAddressBook.put(rinfoToKey(rinfo),new MIDIAddressBookEntry(rinfo));
             if(status) {
@@ -961,7 +988,6 @@ public class MIDISession {
         } else {
             Log.d(TAG,"already in addressbook");
         }
-
         Log.d(TAG,"about to dump ab");
         dumpAddressBook();
 //        getAllAddressBook();
@@ -984,6 +1010,9 @@ public class MIDISession {
 
     }
 
+    public boolean addressBookIsEmpty() {
+        return midiAddressBook == null;
+    }
 
     public ArrayList<MIDIAddressBookEntry> getAllAddressBook() {
         Log.d(TAG,"getAllAddressBook");

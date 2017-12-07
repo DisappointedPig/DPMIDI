@@ -25,6 +25,7 @@ import com.disappointedpig.midi.events.MIDIConnectionEstablishedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestAcceptedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestReceivedEvent;
 import com.disappointedpig.midi.events.MIDIConnectionRequestRejectedEvent;
+import com.disappointedpig.midi.events.MIDIConnectionSentRequestEvent;
 import com.disappointedpig.midi.events.MIDIReceivedEvent;
 import com.disappointedpig.midi.events.MIDISessionNameRegisteredEvent;
 import com.disappointedpig.midi.events.MIDISessionStartEvent;
@@ -366,6 +367,12 @@ public class MainActivity extends AppCompatActivity {
     public void onMIDISyncronizationStartEvent(MIDISyncronizationStartEvent event) {
         Log.d("MainActivity","MIDISyncronizationStartEvent");
         midiConnectionStatusTextView.setText("sync start");
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMIDIConnectionSentRequestEvent(MIDIConnectionSentRequestEvent event) {
+        Log.d("MainActivity","MIDISyncronizationStartEvent");
+        midiConnectionStatusTextView.setText("sent invite");
     }
 
     private IListenerFunctions listener = new IListenerFunctions() {

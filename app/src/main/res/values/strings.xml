@@ -2,4 +2,11 @@
     <string name="app_name">DPMIDI</string>
     <string name="action_settings">Settings</string>
     <string name="title_activity_address_book">AddressBook</string>
+    <string name="missing_string_resource">MISSING STRING RESOURCE</string>
+    <!-- address book -->
+    <string name="hint_ab_name"></string>
+    <string name="title_ab_name">Name</string>
+    <string name="hint_ab_address">127.0.0.1:5004</string>
+    <string name="title_ab_address">Address:Port</string>
+    <string name="title_ab_recon_switch">Reconnect</string>
 </resources>

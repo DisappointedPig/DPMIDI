@@ -162,10 +162,10 @@ class MIDIStream {
                     connectTaskCount++;
                     if(connectTaskCount > connectCountMax ) {
 //                        Log.e(TAG,"connection task count hit max");
-                        rinfo.putBoolean(RINFO_FAIL,true);
-                        EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.UNABLE_TO_CONNECT,rinfo));
+//                        rinfo.putBoolean(RINFO_FAIL,true);
+                        EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.UNABLE_TO_CONNECT,rinfo,initiator_token));
 
-                        handleFailedConnection();
+                        cleanupFailedConnection();
 
                         shutdown();
                         return;
@@ -205,7 +205,7 @@ class MIDIStream {
                     Log.d(TAG,"Sync fail count > max ");
                     EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.SYNC_FAILURE,rinfo));
 
-                    handleFailedConnection();
+                    cleanupFailedConnection();
                     shutdown();
                 }
                 if(isInitiator) {
@@ -241,9 +241,9 @@ class MIDIStream {
             if(timedifference > connectionTimeoutMax) {
                 // stream connection has probably failed
                 Log.e(TAG,"last packet time difference is "+timedifference+"   probably lost connection with "+rinfo1.toString()+" ssrc"+ssrc);
-                rinfo1.putBoolean(RINFO_FAIL,true);
+//                rinfo1.putBoolean(RINFO_FAIL,true);
                 EventBus.getDefault().post(new ConnectionFailedEvent(MIDIFailCode.CONNECTION_LOST,rinfo1));
-                handleFailedConnection();
+                cleanupFailedConnection();
                 shutdown();
             } else {
                 Log.e(TAG,"last packet time difference is "+timedifference+"   connection still up "+rinfo1.toString()+" ssrc"+ssrc);
@@ -280,11 +280,11 @@ class MIDIStream {
         this.isInitiator = true;
 
 
-        Log.d(TAG,"create connection task ");
+        Log.d(TAG,"create connection task "+rinfo.getInt(RINFO_FAIL,0));
         MIDIConnectTask t = new MIDIConnectTask();
         t.setBundle(rinfo);
-
-        connectFuture = connectService.scheduleAtFixedRate(t, 0, 1, SECONDS);
+        int delay =(rinfo.getInt(RINFO_FAIL,0) * 5);
+        connectFuture = connectService.scheduleAtFixedRate(t, delay, 1, SECONDS);
 
 
 //        connectService.schedule(new Runnable() {
@@ -298,8 +298,8 @@ class MIDIStream {
 //        }, 1, MINUTES);
     }
 
-    void handleFailedConnection() {
-        Log.e(TAG,"handleFailedConnection");
+    void cleanupFailedConnection() {
+        Log.e(TAG,"cleanupFailedConnection");
         isConnected = false;
         isInitiator = false;
         primarySyncComplete = false;

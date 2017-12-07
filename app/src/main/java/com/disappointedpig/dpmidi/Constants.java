@@ -21,4 +21,7 @@ public class Constants {
     public interface NOTIFICATION_ID {
         public static int CONNECTIONMGR = 1120;
     }
+
+    public static final String AB_DIALOG_FRAGMENT_KEY = "AddressBookDialogFragment";
+
 }

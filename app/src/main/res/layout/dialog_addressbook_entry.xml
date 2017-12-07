@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:custom="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!--<com.disappointedpig.stagecaller.views.ui.HeaderWithText-->
+    <!--android:id="@+id/headerOptions"-->
+    <!--android:layout_width="0dp"-->
+    <!--android:layout_height="wrap_content"-->
+    <!--android:layout_marginLeft="0dp"-->
+    <!--android:layout_marginRight="0dp"-->
+    <!--android:layout_marginTop="8dp"-->
+    <!--app:layout_constraintLeft_toLeftOf="parent"-->
+    <!--app:layout_constraintRight_toRightOf="parent"-->
+    <!--app:layout_constraintTop_toBottomOf="@+id/backupTo"-->
+    <!--custom:headerWithText_Title_ResID="@string/"-->
+    <!--/>-->
+    <com.disappointedpig.dpmidi.ui.TitleWithEditText
+        android:id="@+id/abName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginTop="12dp"
+        custom:titleWithEdit_Hint_ResId="@string/hint_ab_name"
+        custom:titleWithEdit_Title_ResId="@string/title_ab_name"
+        custom:titleWithEdit_Type_ResId="@+id/ab_name"
+        />
+
+    <com.disappointedpig.dpmidi.ui.TitleWithEditText
+        android:id="@+id/abAddress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginTop="12dp"
+        custom:titleWithEdit_Hint_ResId="@string/hint_ab_address"
+        custom:titleWithEdit_Title_ResId="@string/title_ab_address"
+        custom:titleWithEdit_Type_ResId="@+id/ab_address"
+        />
+
+    <com.disappointedpig.dpmidi.ui.TitleWithSwitch
+        android:id="@+id/abReconnect"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="0dp"
+        android:layout_marginRight="0dp"
+        android:layout_marginTop="8dp"
+        custom:titleSwitch_Switch_State="true"
+        custom:titleSwitch_Switch_Dim="true"
+        custom:titleSwitch_Title_ResId="@string/title_ab_recon_switch"
+        custom:titleSwitch_Switch_ResId="@+id/ab_recon_switch"
+        />
+
+</LinearLayout>

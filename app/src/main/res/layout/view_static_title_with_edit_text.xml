@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical|left"
+
+        >
+        <TextView
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+
+            android:layout_width="400dp"
+            android:layout_height="25dp"
+            android:layout_marginLeft="16dp"
+            android:gravity="top"
+            android:text="static title"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/autotext"
+            android:layout_width="match_parent"
+            android:layout_height="45dp"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginTop="25dp"
+            android:gravity="bottom"
+            android:hint="edit text"
+            android:textSize="18sp"
+            android:maxLines="1"
+            android:enabled="true"
+            android:inputType="text"
+            android:nextFocusUp="@id/autotext"
+            android:nextFocusLeft="@id/autotext"
+            />
+
+
+    </RelativeLayout>
+
+
+
+</merge>

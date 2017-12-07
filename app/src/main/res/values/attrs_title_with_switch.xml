@@ -1,0 +1,8 @@
+<resources>
+    <declare-styleable name="TitleWithSwitch">
+        <attr name="titleSwitch_Title_ResId" format="integer" />
+        <attr name="titleSwitch_Switch_ResId" format="integer" />
+        <attr name="titleSwitch_Switch_State" format="boolean" />
+        <attr name="titleSwitch_Switch_Dim" format="boolean" />
+    </declare-styleable>
+</resources>
