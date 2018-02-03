@@ -2,14 +2,21 @@ apply plugin: 'com.android.library'
 apply from: '../versioning.gradle'
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion "26.0.2"
+    compileSdkVersion 27
+    buildToolsVersion "27.0.3"
 
     defaultConfig {
-        minSdkVersion 14
-        targetSdkVersion 26
+        minSdkVersion 16
+        targetSdkVersion 27
         versionCode buildVersionCode()
         versionName version
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [ eventBusIndex : 'com.disappointedpig.midi.MIDIEventBusIndex' ]
+            }
+        }
+
     }
     buildTypes {
 //        release {
@@ -31,8 +38,9 @@ android {
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
-    compile 'com.android.support:support-compat:26.1.0'
+    compile 'com.android.support:support-compat:27.0.2'
     compile 'org.greenrobot:eventbus:3.1.1'
+    annotationProcessor 'org.greenrobot:eventbus-annotation-processor:3.1.1'
     compile 'org.greenrobot:essentials:3.0.0-RC1'
 //    compile 'com.orhanobut:hawk:2.0.1'
 //    compile 'com.github.trikita:kv:e27a3127e3'

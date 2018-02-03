@@ -16,13 +16,10 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Process;
-import android.support.v7.app.NotificationCompat;
 import android.util.Log;
-import android.widget.Toast;
+
 
 import com.disappointedpig.midi.MIDISession;
-
-import org.greenrobot.eventbus.EventBus;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -244,7 +241,7 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
                     break;
             }
         } else {
-            Log.e(TAG,"set priority to THREAD_PRIORITY_AUDIO");
+            Log.e(TAG,"set priority to THREAD_PRIORITY_URGENT_AUDIO");
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
         }
     }
