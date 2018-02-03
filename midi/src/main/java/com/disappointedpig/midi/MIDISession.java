@@ -418,6 +418,7 @@ public class MIDISession {
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onAddressBookReadyEvent(AddressBookReadyEvent event) {
         Log.d(TAG,"Addressbook ready");
+        checkAddressBookForReconnect();
         dumpAddressBook();
     }
 
