@@ -19,33 +19,31 @@ android {
 
     }
     buildTypes {
-//        release {
-//            minifyEnabled false
-//            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-//        }
         release {
             shrinkResources false
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-//            signingConfig signingConfigs.config
             renderscriptDebuggable false
             zipAlignEnabled true
         }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    testCompile 'junit:junit:4.12'
-    compile 'com.android.support:support-compat:27.0.2'
-    compile 'org.greenrobot:eventbus:3.1.1'
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    testImplementation 'junit:junit:4.12'
+    implementation 'com.android.support:support-compat:27.1.1'
+    implementation 'org.greenrobot:eventbus:3.1.1'
     annotationProcessor 'org.greenrobot:eventbus-annotation-processor:3.1.1'
-    compile 'org.greenrobot:essentials:3.0.0-RC1'
-//    compile 'com.orhanobut:hawk:2.0.1'
-//    compile 'com.github.trikita:kv:e27a3127e3'
-    compile 'com.github.disappointedpig:waspdb:1.1.2'
-
+    implementation 'org.greenrobot:essentials:3.0.0-RC1'
+    //    compile 'com.orhanobut:hawk:2.0.1'
+    //    compile 'com.github.trikita:kv:e27a3127e3'
+    implementation 'com.github.disappointedpig:waspdb:1.1.2'
 }
 
 
