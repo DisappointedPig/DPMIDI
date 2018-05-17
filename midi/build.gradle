@@ -44,7 +44,7 @@ dependencies {
     compile 'org.greenrobot:essentials:3.0.0-RC1'
 //    compile 'com.orhanobut:hawk:2.0.1'
 //    compile 'com.github.trikita:kv:e27a3127e3'
-    compile 'com.github.rehacktive:waspdb:1.1.1'
+    compile 'com.github.disappointedpig:waspdb:1.1.2'
 
 }
 

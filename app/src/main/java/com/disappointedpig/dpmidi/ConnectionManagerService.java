@@ -2,6 +2,8 @@ package com.disappointedpig.dpmidi;
 
 import android.app.Activity;
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
@@ -9,13 +11,17 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.net.wifi.WifiManager;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Process;
+import android.support.annotation.RequiresApi;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 
@@ -24,6 +30,7 @@ import com.disappointedpig.midi.MIDISession;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static android.app.NotificationManager.IMPORTANCE_HIGH;
 import static com.disappointedpig.dpmidi.ConnectionState.NOT_RUNNING;
 
 public class ConnectionManagerService extends Service implements DPMIDIForeground.Listener {
@@ -131,8 +138,50 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
         return binder;
     }
 
+//    private void createNotificationIntent() {
+//        Log.i(TAG, "createNotificationIntent ");
+//        Intent notificationIntent = new Intent(this, MainActivity.class);
+//        notificationIntent.setAction(Constants.ACTION.MAIN_ACTION);
+//        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK  | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+//
+//        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
+//
+////        Intent startMIDIIntent = new Intent(this, ConnectionManagerService.class);
+////        startMIDIIntent.setAction(Constants.ACTION.START_MIDI_ACTION);
+////        PendingIntent pstartMIDIIntent = PendingIntent.getService(this, 0, startMIDIIntent, 0);
+//
+////        Intent stopMIDIIntent = new Intent(this, ConnectionManagerService.class);
+////        stopMIDIIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
+////        PendingIntent pstopMIDIIntent = PendingIntent.getService(this, 0, stopMIDIIntent, 0);
+//
+//        Intent stopCMGRIntent = new Intent(this, ConnectionManagerService.class);
+//        stopCMGRIntent.setAction(Constants.ACTION.STOPCMGR_ACTION);
+//        PendingIntent pstopCMGRSIntent = PendingIntent.getService(this, 0, stopCMGRIntent, 0);
+//
+//
+//        Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
+//
+//        Notification notification = new android.support.v4.app.NotificationCompat.Builder(this)
+//                .setContentTitle("StageCaller")
+//                .setTicker("StageCaller")
+//                .setContentText("stagecaller")
+//                .setSmallIcon(R.mipmap.ic_launcher)
+//                .setLargeIcon(Bitmap.createScaledBitmap(icon, 128, 128, false))
+//                .setContentIntent(pendingIntent)
+//                .setOngoing(true)
+//                .addAction(android.R.drawable.ic_media_play, "Stop CMGRS", pstopCMGRSIntent)
+//                .build();
+//
+////        .addAction(android.R.drawable.ic_media_play, "Start MIDI", pstartMIDIIntent)
+////        .addAction(android.R.drawable.ic_media_pause, "Stop MIDI", pstopMIDIIntent)
+//
+//        startForeground(Constants.NOTIFICATION_ID.CONNECTIONMGR, notification);
+//
+//    }
+
     private void createNotificationIntent() {
         Log.i(TAG, "createNotificationIntent ");
+
         Intent notificationIntent = new Intent(this, MainActivity.class);
         notificationIntent.setAction(Constants.ACTION.MAIN_ACTION);
         notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK  | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -143,33 +192,72 @@ public class ConnectionManagerService extends Service implements DPMIDIForegroun
 //        startMIDIIntent.setAction(Constants.ACTION.START_MIDI_ACTION);
 //        PendingIntent pstartMIDIIntent = PendingIntent.getService(this, 0, startMIDIIntent, 0);
 
-//        Intent stopMIDIIntent = new Intent(this, ConnectionManagerService.class);
-//        stopMIDIIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
-//        PendingIntent pstopMIDIIntent = PendingIntent.getService(this, 0, stopMIDIIntent, 0);
-
         Intent stopCMGRIntent = new Intent(this, ConnectionManagerService.class);
         stopCMGRIntent.setAction(Constants.ACTION.STOPCMGR_ACTION);
         PendingIntent pstopCMGRSIntent = PendingIntent.getService(this, 0, stopCMGRIntent, 0);
 
+//        Intent stopMIDIIntent = new Intent(this, ConnectionManagerService.class);
+//        stopMIDIIntent.setAction(Constants.ACTION.STOP_MIDI_ACTION);
+//        PendingIntent pstopMIDIIntent = PendingIntent.getService(this, 0, stopMIDIIntent, 0);
 
-        Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
+//        Intent startOSCIntent = new Intent(this, ConnectionManagerService.class);
+//        startOSCIntent.setAction(Constants.ACTION.START_OSC_ACTION);
+//        PendingIntent pstartOSCIntent = PendingIntent.getService(this, 0, startOSCIntent, 0);
+//
+//        Intent stopOSCIntent = new Intent(this, ConnectionManagerService.class);
+//        stopOSCIntent.setAction(Constants.ACTION.STOP_OSC_ACTION);
+//        PendingIntent pstopOSCIntent = PendingIntent.getService(this, 0, stopOSCIntent, 0);
 
-        Notification notification = new android.support.v4.app.NotificationCompat.Builder(this)
-                .setContentTitle("StageCaller")
-                .setTicker("StageCaller")
-                .setContentText("stagecaller")
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setLargeIcon(Bitmap.createScaledBitmap(icon, 128, 128, false))
-                .setContentIntent(pendingIntent)
-                .setOngoing(true)
-                .addAction(android.R.drawable.ic_media_play, "Stop CMGRS", pstopCMGRSIntent)
-                .build();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundAPI27();
+        } else {
+            Bitmap icon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
+
+            Notification notification = new android.support.v4.app.NotificationCompat.Builder(this)
+                    .setContentTitle("StageCaller")
+                    .setTicker("StageCaller")
+                    .setContentText("stagecaller")
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setLargeIcon(Bitmap.createScaledBitmap(icon, 128, 128, false))
+                    .setContentIntent(pendingIntent)
+                    .setOngoing(true)
+                    .addAction(android.R.drawable.ic_media_play, "STOP CMGRS", pstopCMGRSIntent)
+                    .build();
 
 //        .addAction(android.R.drawable.ic_media_play, "Start MIDI", pstartMIDIIntent)
-//        .addAction(android.R.drawable.ic_media_pause, "Stop MIDI", pstopMIDIIntent)
+//                .addAction(android.R.drawable.ic_media_pause, "Stop MIDI", pstopMIDIIntent)
+//                .addAction(android.R.drawable.ic_media_play, "Start OSC", pstartOSCIntent)
+//                .addAction(android.R.drawable.ic_media_pause, "Stop OSC", pstopOSCIntent)
+
+            startForeground(Constants.NOTIFICATION_ID.CONNECTIONMGR, notification);
+        }
+
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private void startForegroundAPI27() {
+
+
+        String CHANNEL_ONE_ID = "com.disappointedpig.dpmidi.N1";
+        String CHANNEL_ONE_NAME = "Channel Testing";
+        NotificationChannel notificationChannel = null;
+
+        notificationChannel = new NotificationChannel(CHANNEL_ONE_ID, CHANNEL_ONE_NAME, IMPORTANCE_HIGH);
+        notificationChannel.enableLights(true);
+        notificationChannel.enableVibration(true);
+        notificationChannel.setLightColor(Color.RED);
+
+        notificationChannel.setShowBadge(false);
+        notificationChannel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
+
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        manager.createNotificationChannel(notificationChannel);
+
+
+//        final NotificationCompat.Builder builder = new NotificationCompat.Builder(this,notificationChannel.getId());
+        Notification notification = new NotificationCompat.Builder(this,notificationChannel.getId()).build();
 
         startForeground(Constants.NOTIFICATION_ID.CONNECTIONMGR, notification);
-
     }
 
     // check if midi should be on

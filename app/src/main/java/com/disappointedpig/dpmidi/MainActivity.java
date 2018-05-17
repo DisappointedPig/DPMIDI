@@ -188,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString(MIDIConstants.RINFO_ADDR,"10.209.1.227");
+                rinfo.putString(MIDIConstants.RINFO_ADDR,"10.209.1.175");
                 rinfo.putInt(MIDIConstants.RINFO_PORT,5004);
                 rinfo.putBoolean(MIDIConstants.RINFO_RECON, useReconnect);
                 MIDISession.getInstance().connect(rinfo);
@@ -199,7 +199,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Bundle rinfo = new Bundle();
-                rinfo.putString(MIDIConstants.RINFO_ADDR,"10.209.1.227");
+                rinfo.putString(MIDIConstants.RINFO_ADDR,"10.209.1.175");
                 rinfo.putInt(MIDIConstants.RINFO_PORT,5004);
                 rinfo.putBoolean(MIDIConstants.RINFO_RECON, useReconnect);
                 MIDISession.getInstance().disconnect(rinfo);

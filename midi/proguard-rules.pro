@@ -61,8 +61,7 @@
 -dontusemixedcaseclassnames
 -keepparameternames
 -renamesourcefileattribute SourceFile
--keepattributes Exceptions,InnerClasses,Signature,Deprecated,
-                SourceFile,LineNumberTable,*Annotation*,EnclosingMethod
+-keepattributes Exceptions,InnerClasses,Signature,Deprecated,SourceFile,LineNumberTable,*Annotation*,EnclosingMethod
 
 -keep public class * {
     public protected *;
@@ -95,3 +94,21 @@
 -keep class net.rehacktive.waspdb.** { *; }
 -keep class com.esotericsoftware.kryo.** { *; }
 -keep class com.disappointedpig.midi.MIDIEventBusIndex
+
+# EventBus 3.0 --------------------------
+-keepclassmembers class ** {
+    public void on*Event*(**);
+    public void onMIDINameChange(**);
+}
+
+# EventBus 3.0 annotation
+-keepclassmembers class * {
+    @org.greenrobot.eventbus.Subscribe <methods>;
+}
+-keep enum org.greenrobot.eventbus.ThreadMode { *; }
+
+# Only required if you use AsyncExecutor
+-keepclassmembers class * extends org.greenrobot.eventbus.util.ThrowableFailureEvent {
+    <init>(java.lang.Throwable);
+}
+# --------------------------

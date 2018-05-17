@@ -35,6 +35,7 @@ import com.disappointedpig.midi.internal_events.StreamConnectedEvent;
 import com.disappointedpig.midi.internal_events.StreamDisconnectEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStartedEvent;
 import com.disappointedpig.midi.internal_events.SyncronizeStoppedEvent;
+import com.esotericsoftware.kryo.KryoException;
 
 import net.rehacktive.waspdb.WaspDb;
 import net.rehacktive.waspdb.WaspFactory;
@@ -352,24 +353,31 @@ public class MIDISession {
     }
 
     public void sendUDPMessage(MIDIControl control, Bundle rinfo) {
-//        Log.d("MIDISession","sendUDPMessage:control");
-        if(rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) % 2 == 0) {
-//            Log.d("MIDISession", "sendUDPMessage control 5004 rinfo:" + rinfo.toString());
+        if(control != null && rinfo != null) {
+            Log.d("MIDISession", "sendUDPMessage:control " + rinfo.toString());
+
+            if (rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) % 2 == 0) {
+                Log.d("MIDISession", "sendUDPMessage control 5004 rinfo:" + rinfo.toString());
 //            controlChannel.sendMidi(control, rinfo);
-            controlChannel.sendMidi(control, rinfo);
-        } else {
-//            Log.d("MIDISession","sendUDPMessage control 5005 rinfo:"+rinfo.toString());
+                controlChannel.sendMidi(control, rinfo);
+            } else {
+                Log.d("MIDISession", "sendUDPMessage control 5005 rinfo:" + rinfo.toString());
 //            messageChannel.sendMidi(control, rinfo);
-            messageChannel.sendMidi(control, rinfo);
+                messageChannel.sendMidi(control, rinfo);
+            }
+        } else {
+            Log.e(TAG,"rinfo or control was null...");
         }
     }
 
     public void sendUDPMessage(MIDIMessage m, Bundle rinfo) {
-//        Log.d("MIDISession","sendUDPMessage:message");
+        Log.d("MIDISession","sendUDPMessage:message "+rinfo.toString());
         if(m != null && rinfo != null) {
             if (rinfo.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) % 2 == 0) {
+                Log.d("MIDISession", "sendUDPMessage message 5004 rinfo:" + rinfo.toString());
                 controlChannel.sendMidi(m, rinfo);
             } else {
+                Log.d("MIDISession", "sendUDPMessage message 5004 rinfo:" + rinfo.toString());
                 messageChannel.sendMidi(m, rinfo);
             }
         }
@@ -469,7 +477,7 @@ public class MIDISession {
 
     @Subscribe(threadMode = ThreadMode.ASYNC)
     public void onPacketEvent(PacketEvent e) {
-//        Log.d("MIDISession","PacketEvent packet from "+e.getAddress().getHostAddress()+":"+e.getPort());
+        Log.d("MIDISession","PacketEvent packet from "+e.getAddress().getHostAddress()+":"+e.getPort());
 
         // try control first
         MIDIControl applecontrol = new MIDIControl();
@@ -944,13 +952,22 @@ public class MIDISession {
             @Override
             public void onDone(WaspDb waspDb) {
                 db = waspDb;
-                midiAddressBook = db.openOrCreateHash("midiAddressBook");
-                if (midiAddressBook != null && midiAddressBook.getAllKeys() != null) {
+                try {
+                    midiAddressBook = db.openOrCreateHash("midiAddressBook");
+                    if (midiAddressBook != null && midiAddressBook.getAllKeys() != null) {
+                        Log.d(TAG, "setupWaspDB - count " + midiAddressBook.getAllKeys().size());
+                        EventBus.getDefault().post(new AddressBookReadyEvent());
+                    }
+                } catch (KryoException e) {
+                    e.printStackTrace();
+                    Log.e(TAG,"remove and recreate midiAddressBook");
+                    db.removeHash("midiAddressBook");
+                    midiAddressBook = db.openOrCreateHash("midiAddressBook");
                     Log.d(TAG, "setupWaspDB - count " + midiAddressBook.getAllKeys().size());
                     EventBus.getDefault().post(new AddressBookReadyEvent());
                 }
-
             }
+
         });
 
 //            db = WaspFactory.openOrCreateDatabase(path, databaseName, password, new WaspListener<WaspDb>() {
@@ -984,10 +1001,17 @@ public class MIDISession {
                 Log.d(TAG,"status is good");
                 EventBus.getDefault().post(new MIDIAddressBookEvent());
             }
-            return status;
 
         } else {
             Log.d(TAG,"already in addressbook");
+            MIDIAddressBookEntry e =  midiAddressBook.get(rinfoToKey(rinfo));
+            e.setReconnect(rinfo.getBoolean(RINFO_RECON,e.getReconnect()));
+
+            boolean status = midiAddressBook.put(rinfoToKey(rinfo),e);
+            if(status) {
+                Log.d(TAG,"status is good - updated entry");
+                EventBus.getDefault().post(new MIDIAddressBookEvent());
+            }
         }
         Log.d(TAG,"about to dump ab");
         dumpAddressBook();

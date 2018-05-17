@@ -126,23 +126,27 @@ class MIDIStream {
 
     public boolean connectionMatch(Bundle r) {
         boolean match = false;
-        Log.d(TAG,"connectionMatch "+r.toString() + " ? "+rinfo1.toString() + "/" +rinfo2.toString());
+        if(r != null) {
+            Log.d(TAG, "connectionMatch " + r.toString() + " ? " + rinfo1.toString() + "/" + rinfo2.toString());
 
-        if(rinfo1 == null || rinfo2 == null) { return false; }
+            if (rinfo1 == null || rinfo2 == null) {
+                return false;
+            }
 
-        if(r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR).equals(rinfo1.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR))) {
-            Log.d(TAG,"addr = addr "+r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR));
-            if((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo1.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)) ||
-                    ((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo2.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)))) {
-                Log.d(TAG,"port = port "+r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT));
-                match = true;
+            if (r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR).equals(rinfo1.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR))) {
+                Log.d(TAG, "addr = addr " + r.getString(com.disappointedpig.midi.MIDIConstants.RINFO_ADDR));
+                if ((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo1.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)) ||
+                        ((r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT) == rinfo2.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT)))) {
+                    Log.d(TAG, "port = port " + r.getInt(com.disappointedpig.midi.MIDIConstants.RINFO_PORT));
+                    match = true;
+                } else {
+                    Log.d(TAG, "port != port ");
+
+                }
             } else {
-                Log.d(TAG,"port != port ");
+                Log.d(TAG, "address != address ");
 
             }
-        } else {
-            Log.d(TAG,"address != address ");
-
         }
         return match;
     }

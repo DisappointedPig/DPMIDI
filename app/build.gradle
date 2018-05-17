@@ -4,6 +4,25 @@ android {
     compileSdkVersion 27
     buildToolsVersion "27.0.3"
 
+    signingConfigs {
+        debug {
+            keyAlias 'stagecallerdebugkey'
+            keyPassword 'android'
+            storeFile file('/Users/jay/.android/debug.keystore')
+            storePassword 'android'
+        }
+        release {
+//            keyAlias 'stagecallerdebugkey'
+//            keyPassword 'android'
+//            storeFile file('/Users/jay/.android/debug.keystore')
+//            storePassword 'android'
+            keyAlias 'StagecallerProdUpload'
+            keyPassword 'm8c4fmlm'
+            storeFile file('/Users/jay/.android/stagecaller_production.keystore')
+            storePassword 'm8c4fmlm'
+        }
+    }
+
     defaultConfig {
         applicationId "com.disappointedpig.dpmidi"
         minSdkVersion 16
@@ -11,12 +30,33 @@ android {
         versionCode 3
         versionName "1.3"
     }
+
     buildTypes {
+        debug {
+            shrinkResources false
+            minifyEnabled false
+            proguardFiles 'proguard-rules.pro', getDefaultProguardFile('proguard-android.txt')
+            signingConfig signingConfigs.debug
+            renderscriptDebuggable false
+            zipAlignEnabled false
+            debuggable true
+        }
         release {
+            shrinkResources false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+            renderscriptDebuggable false
+            zipAlignEnabled true
+            debuggable false
         }
     }
+//    buildTypes {
+//        release {
+//            minifyEnabled false
+//            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+//        }
+//    }
 
     dataBinding {
         enabled = true
