@@ -70,8 +70,7 @@ import static com.disappointedpig.midi.MIDIConstants.RINFO_RECON;
 public class MIDISession {
 
     private static MIDISession midiSessionInstance;
-    private static String TAG = MIDISession.class.getSimpleName()
-            ;
+    private static String TAG = MIDISession.class.getSimpleName();
     private static String BONJOUR_TYPE = "_apple-midi._udp";
     private static String BONJOUR_SEPARATOR = ".";
     private static boolean DEBUG = true;
